@@ -146,6 +146,10 @@ describe('mode-aware wire contribution', () => {
     const names = assembly.sections.map(section => section.name)
     const rule = assembly.sections.find(section => section.name === 'tools:code-only')
     expect(rule?.text).toContain(`\`${RUN_CODE_NAME}\` is the only tool you can call directly`)
+    // Parameter completeness rides the same early section: a model that only
+    // discovers `code` after the long SDK block may emit `{description}` alone.
+    expect(rule?.text).toContain('both non-empty `code` and `description`')
+    expect(rule?.text).toContain('missing required property "code"')
     // The rule is worthless after the guidance it qualifies.
     expect(names.indexOf('tools:code-only')).toBeLessThan(names.indexOf('tool:echo'))
     expect(names.indexOf('tools:code-only')).toBeLessThan(names.indexOf('tools:sdk'))
@@ -401,10 +405,20 @@ describe('mode-aware wire contribution', () => {
     expect(runCodeSchema?.description).toContain('BODY of an')
     // Both required arguments are named here, not only in the parameter
     // schema: prose that describes the call as "pass the program" is what
-    // leads a model to emit `{code}` alone and fail INVALID_ARGS.
+    // leads a model to emit `{code}` alone and fail INVALID_ARGS. Naming
+    // `description` as a UI label only also blocks the inverse failure
+    // (`{description}` alone).
     expect(runCodeSchema?.description).toContain('`description`')
+    expect(runCodeSchema?.description).toContain('never a substitute for `code`')
     const codeParam = (runCodeSchema?.parameters as { properties: { code: { description: string } } }).properties.code
-    expect(codeParam.description).toBe('The program: the body of an async TypeScript function.')
+    expect(codeParam.description).toBe(
+      'Required. The non-empty program body: an async TypeScript function body with the '
+      + 'actual `await tools.name(args)` logic. Omitting it fails validation.',
+    )
+    const descriptionParam = (runCodeSchema?.parameters as {
+      properties: { description: { description: string } }
+    }).properties.description
+    expect(descriptionParam.description).toContain('never a substitute for `code`')
   })
 
   it('emits a Python-flavored run_code schema under a python runtime (matches the SDK language)', async () => {
@@ -415,9 +429,13 @@ describe('mode-aware wire contribution', () => {
     expect(runCodeSchema?.description).toContain('Execute a Python program')
     expect(runCodeSchema?.description).toContain('`return <value>`')
     expect(runCodeSchema?.description).toContain('`description`')
+    expect(runCodeSchema?.description).toContain('never a substitute for `code`')
     expect(runCodeSchema?.description).not.toContain('TypeScript')
     const codeParam = (runCodeSchema?.parameters as { properties: { code: { description: string } } }).properties.code
-    expect(codeParam.description).toBe('The program: the body of an async Python function.')
+    expect(codeParam.description).toBe(
+      'Required. The non-empty program body: an async Python function body with the '
+      + 'actual `await tools.name(args)` logic. Omitting it fails validation.',
+    )
   })
 
   it('resolves the run_code schema flavor lazily and fails loud on a language absent from the flavor table', async () => {
@@ -448,7 +466,10 @@ describe('mode-aware wire contribution', () => {
     const definition = ctx.tools.get(RUN_CODE_NAME)
     expect(definition?.description).toContain('Execute a TypeScript program')
     const params = definition?.parameters as { properties: { code: { description: string } } }
-    expect(params.properties.code.description).toBe('The program: the body of an async TypeScript function.')
+    expect(params.properties.code.description).toBe(
+      'Required. The non-empty program body: an async TypeScript function body with the '
+      + 'actual `await tools.name(args)` logic. Omitting it fails validation.',
+    )
   })
 
   it("rejects the assembly when toolOrder names a native tool that mode 'code' no longer contributes", async () => {
