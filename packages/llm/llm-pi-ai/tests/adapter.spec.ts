@@ -872,20 +872,20 @@ describe('provider profile lifecycle', () => {
     expect(new LlmError('x', 'X')).toBeInstanceOf(Error)
   })
 
-  it('projects text-only routes and still rejects unresolved image-capable routes before provider I/O', async () => {
+  it('rejects unsupported or unresolved image input before provider I/O', async () => {
     const adapter = adapterOf({ openai: {}, deepseek: {} })
     const drain = async (options: Parameters<PiAiAdapter['stream']>[0]): Promise<void> => {
       for await (const _chunk of adapter.stream(options)) { /* drain */ }
     }
 
-    await drain({
+    await expect(drain({
       provider: 'deepseek',
       model: 'deepseek-v4-flash',
       messages: [createUserMessage({
         content: [{ type: 'image', attachment: IMAGE_REF }],
         source: { kind: 'plugin', plugin: 'test' },
       })],
-    })
+    })).rejects.toMatchObject({ code: 'UNSUPPORTED_CONTENT' })
     await expect(drain({
       provider: 'openai',
       model: 'gpt-4.1',
