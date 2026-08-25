@@ -22,6 +22,8 @@
 import { createProvider } from '@earendil-works/pi-ai'
 import type { Api, ApiKeyAuth, Model, Provider, ProviderStreams } from '@earendil-works/pi-ai'
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
+import { googleGenerativeAIApi } from '@earendil-works/pi-ai/api/google-generative-ai.lazy'
+import { googleVertexApi } from '@earendil-works/pi-ai/api/google-vertex.lazy'
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
 import { catalogProvider } from './catalog.ts'
@@ -48,6 +50,8 @@ const PROTOCOLS: Readonly<Record<string, () => ProviderStreams>> = {
   'openai-completions': openAICompletionsApi,
   'openai-responses': openAIResponsesApi,
   'anthropic-messages': anthropicMessagesApi,
+  'google-generative-ai': googleGenerativeAIApi,
+  'google-vertex': googleVertexApi,
 }
 
 /**

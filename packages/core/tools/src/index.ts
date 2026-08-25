@@ -55,7 +55,9 @@ const COLLAPSE_SECTION_ORDER = 99
  * (the call fails) and the route (inside the program), because a rule the
  * model can only discover by being denied is one it corrects too late.
  */
-const CODE_ONLY_INSTRUCTION = `\`${RUN_CODE_NAME}\` is the only tool you can call directly — a tool call naming any other tool fails. Reach every tool the SDK declares below from inside the program. Every \`${RUN_CODE_NAME}\` call must include both non-empty \`code\` and \`description\`. A call with only \`description\` fails immediately (\`missing required property "code"\`).`
+const CODE_ONLY_INSTRUCTION = `**CRITICAL: \`${RUN_CODE_NAME}\` requires BOTH \`code\` AND \`description\` on every call.**\n\n\`${RUN_CODE_NAME}\` is the only tool you can call directly — a tool call naming any other tool fails. Reach every tool the SDK declares below from inside the program.\n\n**Rules:**\n1. Every \`${RUN_CODE_NAME}\` call — including retries and the next call after a successful one — MUST include both non-empty \`code\` and \`description\`.\n2. \`code\` is the program body — write it FIRST.\n3. \`description\` is a short UI label (5-10 words) — it is NEVER a substitute for \`code\`.\n4. A call with only \`description\` fails immediately (\`missing required property "code"\`). Do NOT send only \`description\`.\n\n**Examples:**\n✅ Valid: {"code":"const r = await tools.glob({pattern:\\"*\\"}); return r;","description":"List workspace files"}\n❌ Invalid: {"description":"List workspace files"}`
+
+
 
 const SDK_RENDERERS: Record<string, (schemas: ToolSdkSchema[]) => string> = {
   typescript: renderToolsSdk,

@@ -150,7 +150,7 @@ agent loop 将连续的 `parallel` 调用归入有界滚动池，并把每个 `e
 
 #### 模型看到的内容
 
-Code Mode 会公开生成的 [`run_code` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tools)、下方 SDK 说明，以及按所加载运行时语言生成的精确 SDK 块（TypeScript 的 `declare const tools` 块，或 Python 的 `tools` 声明）。`both` 会同时公开普通 schema 与此 Code Mode API。在 `code` 下，提示词还会带上 `tools:code-only` 规则，其顺序排在逐工具指导段之前，让模型先读到「可以调用哪些工具」再读「每个工具做什么」；`both` 下它渲染为空。说明与 SDK 块随所加载运行时的语言切换；下方展示 TypeScript 版本（经 [`dsh-code-runtime-worker-thread`](../../code-runtime/code-runtime-worker-thread/README.zh.md)），Python 版本（用于任何报告 `language: 'python'` 的运行时）以 Python 语法提供相同操作和类型（`await tools.name(args)`、特殊名称用下标访问、`print(...)` 与顶层 `return`）。
+Code Mode 会公开生成的 [`run_code` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tools)、下方 SDK 说明，以及按所加载运行时语言生成的精确 SDK 块（TypeScript 的 `declare const tools` 块，或 Python 的 `tools` 声明）。`both` 会同时公开普通 schema 与此 Code Mode API。在 `code` 下，提示词还会带上 `tools:code-only` 规则，其顺序排在逐工具指导段之前，让模型先读到「可以调用哪些工具」再读「每个工具做什么」；`both` 下它渲染为空。若 `run_code` 仍因 `missing required property "code"` 校验失败，运行时会只向下一步追加一条很短的纠正性插件上下文，而不是继续把基础提示词写得更长。说明与 SDK 块随所加载运行时的语言切换；下方展示 TypeScript 版本（经 [`dsh-code-runtime-worker-thread`](../../code-runtime/code-runtime-worker-thread/README.zh.md)），Python 版本（用于任何报告 `language: 'python'` 的运行时）以 Python 语法提供相同操作和类型（`await tools.name(args)`、特殊名称用下标访问、`print(...)` 与顶层 `return`）。
 
 ##### Code Mode SDK 说明
 
@@ -159,7 +159,7 @@ Code Mode 会公开生成的 [`run_code` schema](../../../docs/tool-catalog.zh.m
 
 `run_code` takes two required arguments: `code` — the body of an async TypeScript function (erasable syntax only — no `enum` or namespaces; type annotations are advisory, the code runs type-stripped) — and `description`, a short UI label that is never a substitute for `code`. Inside the program:
 
-- Always pass both `code` and `description`. Never call `run_code` with only `description` — that fails with `missing required property "code"`.
+- Always pass both `code` and `description` on every call, including retries and the next call after a successful one. Never call `run_code` with only `description` — that fails with `missing required property "code"`. Valid: `{"code":"const r = await tools.glob({pattern:\"*\"}); return r;","description":"List workspace files"}`. Invalid: `{"description":"List workspace files"}`.
 - Call tools as `await tools.name(args)` — quoted access for exotic names: `tools["my-tool"](args)`. Every call resolves to the tool's typed canonical JSON value. Tool arguments must be lossless JSON.
 - A FAILED tool call rejects with `ToolCallError`, whose `toolName` identifies the failed tool and whose `message` is human-readable — `try/catch` it to handle and continue.
 - Independent read-only calls MAY overlap under `Promise.all` (safe calls run concurrently; mutating calls run alone, in submission order). Sequence dependent work with `await`.

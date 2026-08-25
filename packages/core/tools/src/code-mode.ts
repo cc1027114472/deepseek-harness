@@ -46,14 +46,17 @@ interface RunCodeFlavor {
 const TYPESCRIPT_FLAVOR: RunCodeFlavor = {
   description:
     'Execute a TypeScript program against the available tools. Takes two required '
-    + 'arguments: `code`, the BODY of an async function (erasable syntax only; top-level '
-    + '`await` and `return` work), and `description`, a short UI label that is never a '
-    + 'substitute for `code`. Call tools as `await tools.name(args)` per the declarations '
+    + 'arguments: `code` and `description`. **`code` is the program body and MUST be '
+    + 'provided on every call** — a call with only `description` is rejected immediately. '
+    + '`description` is a short UI label (5-10 words) that is never a substitute for `code`. '
+    + 'The `code` body is an async function (erasable syntax only; top-level '
+    + '`await` and `return` work). '
+    + 'Call tools as `await tools.name(args)` per the declarations '
     + 'in the system prompt. Only what you print or return is program output — curate it. '
     + 'Image-bearing subtool results are attached after the run.',
   codeDescription:
-    'Required. The non-empty program body: an async TypeScript function body with the '
-    + 'actual `await tools.name(args)` logic. Omitting it fails validation.',
+    'Required on every call, including retries. The non-empty program body: an async '
+    + 'TypeScript function body with the actual `await tools.name(args)` logic. Omitting it fails validation.',
 }
 
 /**
@@ -64,14 +67,17 @@ const TYPESCRIPT_FLAVOR: RunCodeFlavor = {
 const PYTHON_FLAVOR: RunCodeFlavor = {
   description:
     'Execute a Python program against the available tools. Takes two required '
-    + 'arguments: `code`, the BODY of an async function (top-level `await` and `return` '
-    + 'work), and `description`, a short UI label that is never a substitute for `code`. '
+    + 'arguments: `code` and `description`. **`code` is the program body and MUST be '
+    + 'provided on every call** — a call with only `description` is rejected immediately. '
+    + '`description` is a short UI label (5-10 words) that is never a substitute for `code`. '
+    + 'The `code` body is an async function (top-level `await` and `return` '
+    + 'work). '
     + 'Call tools as `await tools.name(args)` per the declarations in the system prompt. '
     + 'Use `print(...)` and/or `return <value>` for program output — curate it. Image-bearing '
     + 'subtool results are attached after the run.',
   codeDescription:
-    'Required. The non-empty program body: an async Python function body with the '
-    + 'actual `await tools.name(args)` logic. Omitting it fails validation.',
+    'Required on every call, including retries. The non-empty program body: an async '
+    + 'Python function body with the actual `await tools.name(args)` logic. Omitting it fails validation.',
 }
 
 /**
@@ -99,7 +105,10 @@ const RUN_CODE_FLAVORS: Record<string, RunCodeFlavor> = {
  */
 const RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION
   = 'Clear, concise description of what this program does in active voice, '
-    + '5-10 words (shown in the UI). This is a label only — never a substitute for `code`. '
+    + '5-10 words (shown in the UI). If omitted, a default label is used. '
+    + '**WARNING: this is a label only — NEVER a substitute for `code`. '
+    + 'You MUST provide `code` (the program body) on every call. A call with only `description` '
+    + 'is REJECTED immediately.** '
     + 'Examples: "Count TODO markers across packages"; '
     + '"Read failing test and its fixture"; "Rename config key in every cordis.yml".'
 
@@ -333,9 +342,6 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
       },
     },
     async execute(args, exec): Promise<RunCodeOutput> {
-      if (args.description.trim().length === 0) {
-        throw new Error('invalid description: expected a non-empty string')
-      }
       const runtime = requireRuntime()
 
       // The run-scoped abort: follows the outer signal in, and fires when the
@@ -679,7 +685,7 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
     // the emitted schema always matches the validated specification.
     get: () => parameterSchemaSpecToJsonSchema({
       code: { type: 'string', required: true, description: resolveFlavor(peekRuntime).codeDescription },
-      description: { type: 'string', required: true, description: RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION },
+      description: { type: 'string', description: RUN_CODE_DESCRIPTION_PARAM_DESCRIPTION },
     }) as unknown as Record<string, unknown>,
   })
   return definition

@@ -258,6 +258,44 @@ describe('provider-routed retry policy', () => {
     })
   })
 
+  it('retries QUOTA under the default retryable codes', async () => {
+    vi.useFakeTimers()
+    const adapter = new ScriptedAdapter([
+      new LlmError(
+        'Allocated quota exceeded, please increase your quota limit.',
+        'QUOTA',
+        { status: 429 },
+      ),
+      textResponse('recovered'),
+    ])
+    ;({ ctx: context } = await harness(adapter, {}))
+    const agent = context.agentLoop.create(SessionId('retry-quota'), { provider: 'mock', model: 'mock' })
+    const scheduled = waitForRetry(context, agent, 1)
+
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    const event = await scheduled
+    expect(event.data).toMatchObject({
+      mode: 'normal',
+      retry: 1,
+      maxRetries: 7,
+      failure: {
+        message: 'Allocated quota exceeded, please increase your quota limit.',
+        code: 'QUOTA',
+        status: 429,
+      },
+    })
+
+    const idle = waitForIdle(context, agent)
+    await vi.advanceTimersByTimeAsync(500)
+    await idle
+
+    expect(adapter.requests).toHaveLength(2)
+    expect(agent.session.deriveMessages().at(-1)).toMatchObject({
+      role: 'assistant',
+      content: [{ type: 'text', text: 'recovered' }],
+    })
+  })
+
   it('leaves partial failed chunks on their step without committing a message or tool side effect', async () => {
     vi.useFakeTimers()
     const adapter = new ScriptedAdapter([

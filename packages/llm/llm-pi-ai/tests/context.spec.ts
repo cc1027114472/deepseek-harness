@@ -73,7 +73,7 @@ describe('pi-ai request context conversion', () => {
     expect(toPiContext({ ...base, tools: [] })).toEqual({ messages: [] })
   })
 
-  it('converts complete text-only history and rejects nested images without storage', () => {
+  it('converts complete text-only history and projects nested images without storage', () => {
     const callId = CallId('call-1')
     expect(toPiContext(request([
       history('system', [{ type: 'text', text: 'history system' }]),
@@ -103,11 +103,17 @@ describe('pi-ai request context conversion', () => {
       ],
     })
 
-    expect(() => toPiContext(request([user([{
+    expect(toPiContext(request([user([{
       type: 'tool-result',
       toolCallId: callId,
       content: [{ type: 'image', attachment: ref }],
-    }])]))).toThrow(/durable attachment service/)
+    }])]))).toMatchObject({
+      messages: [{
+        role: 'toolResult',
+        toolCallId: 'call-1',
+        content: [{ type: 'text', text: '[image: image/png, content discarded]' }],
+      }],
+    })
   })
 
   it('resolves user and tool-result images while preserving explicit fallbacks', async () => {

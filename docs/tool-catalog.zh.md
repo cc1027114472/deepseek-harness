@@ -134,7 +134,7 @@ ask_user_question 会暂停工具调用，直到当前 UI 提供方返回人类�
   "properties": {
     "code": {
       "type": "string",
-      "description": "Required. The non-empty program body: an async TypeScript function body with the actual `await tools.name(args)` logic. Omitting it fails validation."
+      "description": "Required on every call, including retries. The non-empty program body: an async TypeScript function body with the actual `await tools.name(args)` logic. Omitting it fails validation."
     },
     "description": {
       "type": "string",

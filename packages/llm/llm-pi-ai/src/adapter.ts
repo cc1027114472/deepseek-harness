@@ -373,6 +373,23 @@ export class PiAiAdapter extends LlmAdapter {
         // Profile headers are deployment-owned; attribution names are
         // Harness-owned and therefore win collisions.
         headers: requestHeaders(profile.headers),
+        // Gemini native protocol needs includeServerSideToolInvocations for tool calling.
+        onPayload: (payload) => {
+          if (model.api === 'google-generative-ai' || model.api === 'google-vertex') {
+            const p = payload as { config?: Record<string, unknown> }
+            if (!p.config) p.config = {}
+            if (!p.config.toolConfig) p.config.toolConfig = {}
+            const tc = p.config.toolConfig as Record<string, unknown>
+            tc.includeServerSideToolInvocations = true
+            tc.include_server_side_tool_invocations = true
+            if (!tc.functionCallingConfig) {
+              tc.functionCallingConfig = { mode: 'AUTO' }
+            }
+            tc.function_calling_config = { mode: 'AUTO' }
+            p.config.tool_config = tc
+          }
+          return payload
+        },
       })
       const iterator = toStreamChunks(events, model.contextWindow)[Symbol.asyncIterator]()
       let exhausted = false

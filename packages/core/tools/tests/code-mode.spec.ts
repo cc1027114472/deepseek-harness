@@ -150,9 +150,45 @@ describe('mode-aware wire contribution', () => {
     // discovers `code` after the long SDK block may emit `{description}` alone.
     expect(rule?.text).toContain('both non-empty `code` and `description`')
     expect(rule?.text).toContain('missing required property "code"')
+    expect(rule?.text).toContain('including retries')
+    expect(rule?.text).toContain('Invalid: {"description":"List workspace files"}')
     // The rule is worthless after the guidance it qualifies.
     expect(names.indexOf('tools:code-only')).toBeLessThan(names.indexOf('tool:echo'))
     expect(names.indexOf('tools:code-only')).toBeLessThan(names.indexOf('tools:sdk'))
+  })
+
+  it('run_code missing `code` attaches one corrective retry context', async () => {
+    const { ctx } = await setup({ mode: 'code' })
+    const result = await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: CallId('call-missing-code'),
+      name: RUN_CODE_NAME,
+      arguments: { description: 'List files in workspace' },
+    })
+    expect(result.isError).toBe(true)
+    expect(result.error?.info).toEqual({ name: 'ToolArgsError', code: 'INVALID_ARGS' })
+    expect(result.error?.message).toContain('missing required property "code"')
+    expect(result.additionalContexts).toMatchObject([{
+      source: { kind: 'plugin', plugin: '@deepseek-ai/dsh-tools' },
+      content: [{
+        type: 'text',
+        text: expect.stringContaining('Retry by calling `run_code` with both non-empty `code` and `description`'),
+      }],
+    }])
+  })
+
+  it('run_code validation errors unrelated to missing `code` do not attach that retry context', async () => {
+    const { ctx } = await setup({ mode: 'code' })
+    const result = await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: CallId('call-missing-description'),
+      name: RUN_CODE_NAME,
+      arguments: { code: 'return 1' },
+    })
+    expect(result.isError).toBe(true)
+    expect(result.error?.info).toEqual({ name: 'ToolArgsError', code: 'INVALID_ARGS' })
+    expect(result.error?.message).toContain('missing required property "description"')
+    expect(result.additionalContexts).toBeUndefined()
   })
 
   it("mode 'both' omits the run_code-only rule, because native calls do execute there", async () => {
@@ -412,8 +448,8 @@ describe('mode-aware wire contribution', () => {
     expect(runCodeSchema?.description).toContain('never a substitute for `code`')
     const codeParam = (runCodeSchema?.parameters as { properties: { code: { description: string } } }).properties.code
     expect(codeParam.description).toBe(
-      'Required. The non-empty program body: an async TypeScript function body with the '
-      + 'actual `await tools.name(args)` logic. Omitting it fails validation.',
+      'Required on every call, including retries. The non-empty program body: an async '
+      + 'TypeScript function body with the actual `await tools.name(args)` logic. Omitting it fails validation.',
     )
     const descriptionParam = (runCodeSchema?.parameters as {
       properties: { description: { description: string } }
@@ -433,8 +469,8 @@ describe('mode-aware wire contribution', () => {
     expect(runCodeSchema?.description).not.toContain('TypeScript')
     const codeParam = (runCodeSchema?.parameters as { properties: { code: { description: string } } }).properties.code
     expect(codeParam.description).toBe(
-      'Required. The non-empty program body: an async Python function body with the '
-      + 'actual `await tools.name(args)` logic. Omitting it fails validation.',
+      'Required on every call, including retries. The non-empty program body: an async '
+      + 'Python function body with the actual `await tools.name(args)` logic. Omitting it fails validation.',
     )
   })
 
@@ -467,8 +503,8 @@ describe('mode-aware wire contribution', () => {
     expect(definition?.description).toContain('Execute a TypeScript program')
     const params = definition?.parameters as { properties: { code: { description: string } } }
     expect(params.properties.code.description).toBe(
-      'Required. The non-empty program body: an async TypeScript function body with the '
-      + 'actual `await tools.name(args)` logic. Omitting it fails validation.',
+      'Required on every call, including retries. The non-empty program body: an async '
+      + 'TypeScript function body with the actual `await tools.name(args)` logic. Omitting it fails validation.',
     )
   })
 

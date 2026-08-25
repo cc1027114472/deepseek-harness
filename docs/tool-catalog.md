@@ -130,7 +130,7 @@ Execute a TypeScript program against the available tools. Takes two required arg
   "properties": {
     "code": {
       "type": "string",
-      "description": "Required. The non-empty program body: an async TypeScript function body with the actual `await tools.name(args)` logic. Omitting it fails validation."
+      "description": "Required on every call, including retries. The non-empty program body: an async TypeScript function body with the actual `await tools.name(args)` logic. Omitting it fails validation."
     },
     "description": {
       "type": "string",

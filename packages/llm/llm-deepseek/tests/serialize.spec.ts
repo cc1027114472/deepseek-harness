@@ -205,8 +205,8 @@ describe('serializeMessages', () => {
     expect(wire).toEqual([{ role: 'user', content: 'see chart' }])
   })
 
-  it('rejects image blocks instead of silently flattening them away', () => {
-    expect(() => serializeMessages([createUserMessage({
+  it('projects image blocks to placeholders on a text-only wire route', () => {
+    const wire = serializeMessages([createUserMessage({
       content: [{
         type: 'image',
         attachment: {
@@ -215,7 +215,8 @@ describe('serializeMessages', () => {
         },
       }],
       source: { kind: 'plugin', plugin: 'test' },
-    })])).toThrow(expect.objectContaining({ code: 'UNSUPPORTED_CONTENT' }))
+    })])
+    expect(wire).toEqual([{ role: 'user', content: '[image: image/png, content discarded]' }])
   })
 
   it('emits an empty user message rather than dropping block-less messages', () => {

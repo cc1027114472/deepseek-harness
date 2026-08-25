@@ -9,14 +9,15 @@
 
 import z from '@deepseek-ai/schemastery'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
-import { EMPTY_RESPONSE_CODE } from './error.ts'
+import { EMPTY_RESPONSE_CODE, QUOTA_EXCEEDED_CODE } from './error.ts'
 
-const DEFAULT_MAX_RETRIES = 5
+const DEFAULT_MAX_RETRIES = 7
 const DEFAULT_INITIAL_DELAY_MS = 500
 const DEFAULT_MAX_DELAY_MS = 10_000
 const DEFAULT_JITTER_RATIO = 0.1
 const DEFAULT_RETRYABLE_CODES = Object.freeze([
   EMPTY_RESPONSE_CODE,
+  QUOTA_EXCEEDED_CODE,
   'RATE_LIMIT',
   'SERVER',
   'TIMEOUT',
@@ -37,7 +38,7 @@ export interface BackoffConfig {
 export interface NormalRetryPolicyConfig {
   /** Retry only configured transient failure codes. */
   mode: 'normal'
-  /** Maximum eligible retries after the first request (default 5). */
+  /** Maximum eligible retries after the first request (default 7). */
   maxRetries?: number
   /** Stable failure codes eligible for this policy. */
   retryableCodes?: string[]
