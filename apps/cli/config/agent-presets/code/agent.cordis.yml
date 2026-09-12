@@ -182,6 +182,18 @@
             retainRatio: 0.08
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
+          - provider: aaaa
+            model: claude-sonnet-4-6
+            thresholdRatio: 0.45
+            retainRatio: 0.08
+            summarizationProvider: ririxin
+            summarizationModel: deepseek-v4-flash
+          - provider: bbbb
+            model: claude-sonnet-4-6-thinking
+            thresholdRatio: 0.45
+            retainRatio: 0.08
+            summarizationProvider: ririxin
+            summarizationModel: deepseek-v4-flash
           - provider: ririxin
             model: sensenova-6.7-flash-lite
             thresholdRatio: 0.45
