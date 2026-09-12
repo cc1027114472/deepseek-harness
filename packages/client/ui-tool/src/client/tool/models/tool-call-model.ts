@@ -42,7 +42,7 @@ const TOOL_VARIANTS: Record<string, ToolRowVariant> = {
   pwsh: 'bash',
   read: 'read',
   web_fetch: 'read',
-  web_search: 'search',
+  dsh_web_search: 'search',
   grep: 'search',
   glob: 'search',
   write: 'write',

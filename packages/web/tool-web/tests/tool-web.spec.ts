@@ -449,20 +449,20 @@ describe('tool-web registration', () => {
   it('registers both tools by default', async () => {
     const { fiber, ctx } = await mountTools()
     const names = ctx.tools.schemas().map(s => s.name)
-    expect(names).toContain('web_search')
+    expect(names).toContain('dsh_web_search')
     expect(names).toContain('web_fetch')
-    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: CallId('search-safe'), name: 'web_search', arguments: { queries: ['q'] } }))
+    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: CallId('search-safe'), name: 'dsh_web_search', arguments: { queries: ['q'] } }))
       .toEqual({ kind: 'parallel' })
     expect(ctx.tools.executionMode({ signal: testToolSignal, callId: CallId('fetch-safe'), name: 'web_fetch', arguments: { url: 'https://a.test' } }))
       .toEqual({ kind: 'parallel' })
     await fiber.dispose()
-    expect(ctx.tools.schemas().map(s => s.name)).not.toContain('web_search')
+    expect(ctx.tools.schemas().map(s => s.name)).not.toContain('dsh_web_search')
   })
 
   it('registers only enabled tools', async () => {
     const { fiber, ctx } = await mountTools({ config: { search: true, fetch: false } })
     const names = ctx.tools.schemas().map(s => s.name)
-    expect(names).toContain('web_search')
+    expect(names).toContain('dsh_web_search')
     expect(names).not.toContain('web_fetch')
     await fiber.dispose()
   })
@@ -470,17 +470,17 @@ describe('tool-web registration', () => {
   it('registers only web_fetch when search is disabled', async () => {
     const { fiber, ctx } = await mountTools({ config: { search: false, fetch: true } })
     const names = ctx.tools.schemas().map(s => s.name)
-    expect(names).not.toContain('web_search')
+    expect(names).not.toContain('dsh_web_search')
     expect(names).toContain('web_fetch')
     await fiber.dispose()
   })
 
   it('registers web_search even when no provider is available (schema follows enablement, not availability)', async () => {
     const { fiber, ctx, call } = await mountTools()
-    expect(ctx.tools.schemas().map(s => s.name)).toContain('web_search')
+    expect(ctx.tools.schemas().map(s => s.name)).toContain('dsh_web_search')
     // No provider is registered: the schema stays visible and execution reports
     // the structured unavailability instead.
-    const out = await call('web_search', { queries: ['q'] })
+    const out = await call('dsh_web_search', { queries: ['q'] })
     expect(out.error?.info?.code).toBe('WEB_PROVIDER_UNAVAILABLE')
     await fiber.dispose()
   })
@@ -489,7 +489,7 @@ describe('tool-web registration', () => {
     const { fiber, ctx } = await mountTools()
     const prompt = await ctx.systemPrompt.assemble()
     const text = prompt.sections.map(s => s.text).join('\n')
-    expect(text).toContain(`Use the web_search tool to discover current information on the web. The required queries array accepts 1–${WEB_SEARCH_MAX_QUERIES} non-empty search queries; use a one-item array for a single search. It returns an optional answer plus a list of source URLs. Follow up with web_fetch when you need the full content of a specific result, and cite the relevant URLs as markdown links.`)
+    expect(text).toContain(`Use the dsh_web_search tool to discover current information on the web. The required queries array accepts 1–${WEB_SEARCH_MAX_QUERIES} non-empty search queries; use a one-item array for a single search. It returns an optional answer plus a list of source URLs. Follow up with web_fetch when you need the full content of a specific result, and cite the relevant URLs as markdown links.`)
     expect(text).toContain('Use the web_fetch tool to retrieve the content of a specific HTTP(S) URL')
     await fiber.dispose()
   })
@@ -511,7 +511,7 @@ describe('tool-web execution through the real registry', () => {
       sources: [{ url: 'https://a.test', title: 'A', snippet: 'snip', publishedAt: '2026-07-20' }],
     }
     const { fiber, call } = await mountTools({ webConfig: { searchProvider: 'stub-search' }, search: searchProvider(result) })
-    const out = await call('web_search', { queries: ['q'] })
+    const out = await call('dsh_web_search', { queries: ['q'] })
     expect(out.isError).toBe(false)
     expect(out.value).toEqual(result)
     expect(out.content.map(b => b.type === 'text' ? b.text : '').join('')).toContain('[A](https://a.test)')
@@ -548,7 +548,7 @@ describe('tool-web execution through the real registry', () => {
       },
     }
     const { fiber, call } = await mountTools({ webConfig: { searchProvider: 'stub-search' }, search: provider })
-    const pending = call('web_search', { queries: ['one', 'one', 'two'] })
+    const pending = call('dsh_web_search', { queries: ['one', 'one', 'two'] })
     try {
       await vi.waitFor(() => { expect(seen).toEqual(['one', 'two']) })
     } finally {
@@ -580,7 +580,7 @@ describe('tool-web execution through the real registry', () => {
         : { sources: [{ url: 'https://b.test' }, { url: 'https://c.test' }], truncated: false }),
     }
     const { fiber, call } = await mountTools({ webConfig: { searchProvider: 'stub-search' }, search: provider })
-    const out = await call('web_search', { queries: ['one', 'two'] })
+    const out = await call('dsh_web_search', { queries: ['one', 'two'] })
     expect(out.isError).toBe(false)
     expect(out.value).toEqual({
       sources: [
@@ -610,7 +610,7 @@ describe('tool-web execution through the real registry', () => {
       },
     }
     const { fiber, call } = await mountTools({ webConfig: { searchProvider: 'stub-search' }, search: provider })
-    const pending = call('web_search', { queries: ['one', 'two'] })
+    const pending = call('dsh_web_search', { queries: ['one', 'two'] })
     let callSettled = false
     void pending.then(() => { callSettled = true })
     try {
@@ -638,7 +638,7 @@ describe('tool-web execution through the real registry', () => {
       }),
     }
     const { fiber, call } = await mountTools({ config: { searchMaxResults: 2 }, webConfig: { searchProvider: 'stub-search' }, search: provider })
-    const out = await call('web_search', { queries: ['one', 'two'] })
+    const out = await call('dsh_web_search', { queries: ['one', 'two'] })
     expect(out.isError).toBe(false)
     expect(out.value).toEqual({
       sources: [{ url: 'https://a.test' }, { url: 'https://c.test' }],
@@ -655,12 +655,12 @@ describe('tool-web execution through the real registry', () => {
       sources: [{ url: 'https://a.test', title: 'A', snippet: 'snip', publishedAt: '2026-07-20' }],
     }
     const { ctx, fiber, call } = await mountTools({ webConfig: { searchProvider: 'stub-search' }, search: searchProvider(result) })
-    const out = await call('web_search', { queries: ['q'] })
+    const out = await call('dsh_web_search', { queries: ['q'] })
     expect(out.meta).toEqual({
       answer: 'answer', truncated: true,
       sources: [{ url: 'https://a.test', title: 'A', snippet: 'snip', publishedAt: '2026-07-20' }],
     })
-    const view = ctx.tools.get('web_search')?.presentResult?.({ queries: ['q'] }, { content: out.content, isError: out.isError, ...out.meta !== undefined ? { meta: out.meta } : {} })
+    const view = ctx.tools.get('dsh_web_search')?.presentResult?.({ queries: ['q'] }, { content: out.content, isError: out.isError, ...out.meta !== undefined ? { meta: out.meta } : {} })
     expect(view).toMatchObject({ card: 'web', kind: 'search', truncated: true, answer: 'answer' })
     await fiber.dispose()
   })
@@ -683,7 +683,7 @@ describe('tool-web execution through the real registry', () => {
 
   it('surfaces a structured WebError when no provider is available', async () => {
     const { fiber, call } = await mountTools()
-    const out = await call('web_search', { queries: ['q'] })
+    const out = await call('dsh_web_search', { queries: ['q'] })
     expect(out.isError).toBe(true)
     expect(out.error?.info?.code).toBe('WEB_PROVIDER_UNAVAILABLE')
     await fiber.dispose()
@@ -692,7 +692,7 @@ describe('tool-web execution through the real registry', () => {
   it('surfaces WEB_PROVIDER_AMBIGUOUS for multiple unconfigured providers', async () => {
     const { ctx, fiber, call } = await mountTools({ search: searchProvider({ sources: [], truncated: false }) })
     ctx.web.registerSearchProvider({ id: 'other', available: () => available, search: () => Promise.resolve({ sources: [], truncated: false }) })
-    const out = await call('web_search', { queries: ['q'] })
+    const out = await call('dsh_web_search', { queries: ['q'] })
     expect(out.isError).toBe(true)
     expect(out.error?.info?.code).toBe('WEB_PROVIDER_AMBIGUOUS')
     await fiber.dispose()
@@ -700,7 +700,7 @@ describe('tool-web execution through the real registry', () => {
 
   it.each([{}, { queries: [123] }])('rejects absent or wrongly typed queries with a structured INVALID_ARGS error', async (args) => {
     const { fiber, call } = await mountTools({ webConfig: { searchProvider: 'stub-search' }, search: searchProvider({ sources: [], truncated: false }) })
-    const out = await call('web_search', args)
+    const out = await call('dsh_web_search', args)
     expect(out.isError).toBe(true)
     expect(out.error?.info?.code).toBe('INVALID_ARGS')
     await fiber.dispose()
@@ -772,7 +772,7 @@ describe('tool-web execution through the real registry', () => {
     }
     const { ctx, fiber } = await mountTools({ webConfig: { searchProvider: 'stub-search' }, search: provider })
     const controller = new AbortController()
-    await ctx.tools.execute({ callId: CallId('search-1'), name: 'web_search', arguments: { queries: ['q'] }, signal: controller.signal })
+    await ctx.tools.execute({ callId: CallId('search-1'), name: 'dsh_web_search', arguments: { queries: ['q'] }, signal: controller.signal })
     expect(seen.signal).toBe(controller.signal)
     await fiber.dispose()
   })
@@ -791,7 +791,7 @@ describe('tool-web execution through the real registry', () => {
     }
     const { ctx, fiber } = await mountTools({ webConfig: { searchProvider: 'stub-search' }, search: provider })
     const controller = new AbortController()
-    const pending = ctx.tools.execute({ callId: CallId('search-multi-1'), name: 'web_search', arguments: { queries: ['one', 'two'] }, signal: controller.signal })
+    const pending = ctx.tools.execute({ callId: CallId('search-multi-1'), name: 'dsh_web_search', arguments: { queries: ['one', 'two'] }, signal: controller.signal })
     await vi.waitFor(() => { expect(signals).toHaveLength(2) })
     expect(signals[0]).toBe(signals[1])
     expect(signals[0]).not.toBe(controller.signal)
@@ -811,7 +811,7 @@ describe('searchMaxResults is plugin config', () => {
       search: (request) => { seen.maxResults = request.maxResults; return Promise.resolve({ sources: [], truncated: false }) },
     }
     const { fiber, call } = await mountTools({ webConfig: { searchProvider: 'stub-search' }, search: provider })
-    await call('web_search', { queries: ['q'] })
+    await call('dsh_web_search', { queries: ['q'] })
     expect(seen.maxResults).toBe(WEB_SEARCH_MAX_RESULTS)
     await fiber.dispose()
   })
@@ -824,7 +824,7 @@ describe('searchMaxResults is plugin config', () => {
       search: () => Promise.resolve({ sources, truncated: false }),
     }
     const { fiber, call } = await mountTools({ config: { searchMaxResults: 2 }, webConfig: { searchProvider: 'stub-search' }, search: provider })
-    const out = await call('web_search', { queries: ['q'] })
+    const out = await call('dsh_web_search', { queries: ['q'] })
     expect(out.isError).toBe(false)
     const body = out.content.map(b => b.type === 'text' ? b.text : '').join('')
     expect(body).toContain('https://s1.test')
@@ -863,11 +863,11 @@ describe('searchMaxQueries is plugin config', () => {
       webConfig: { searchProvider: 'stub-search' },
       search: provider,
     })
-    const schema = ctx.tools.schemas().find(item => item.name === 'web_search')
+    const schema = ctx.tools.schemas().find(item => item.name === 'dsh_web_search')
     expect(schema?.description).toContain('1–2 queries')
     const prompt = await ctx.systemPrompt.assemble()
     expect(prompt.sections.map(section => section.text).join('\n')).toContain('accepts 1–2 non-empty search queries')
-    const out = await call('web_search', { queries: ['one', 'two', 'three'] })
+    const out = await call('dsh_web_search', { queries: ['one', 'two', 'three'] })
     expect(out.isError).toBe(true)
     expect(out.content).toEqual([{ type: 'text', text: 'Error: queries must contain at most 2 queries' }])
     expect(seen).toEqual([])
@@ -888,14 +888,14 @@ describe('tool-call timeout budget is plugin config', () => {
   it('attaches the default 30s budget to web_fetch and web_search', async () => {
     const { fiber, ctx } = await mountTools()
     expect(ctx.tools.get('web_fetch')?.timeoutMs).toBe(30_000)
-    expect(ctx.tools.get('web_search')?.timeoutMs).toBe(30_000)
+    expect(ctx.tools.get('dsh_web_search')?.timeoutMs).toBe(30_000)
     await fiber.dispose()
   })
 
   it('honors per-tool timeout overrides from config', async () => {
     const { fiber, ctx } = await mountTools({ config: { fetchTimeoutMs: 60_000, searchTimeoutMs: 10_000 } })
     expect(ctx.tools.get('web_fetch')?.timeoutMs).toBe(60_000)
-    expect(ctx.tools.get('web_search')?.timeoutMs).toBe(10_000)
+    expect(ctx.tools.get('dsh_web_search')?.timeoutMs).toBe(10_000)
     await fiber.dispose()
   })
 

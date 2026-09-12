@@ -373,12 +373,14 @@ export class PiAiAdapter extends LlmAdapter {
         // Profile headers are deployment-owned; attribution names are
         // Harness-owned and therefore win collisions.
         headers: requestHeaders(profile.headers),
-        // Google Generative AI and Vertex require includeServerSideToolInvocations
+        // Google Generative AI requires includeServerSideToolInvocations
         // when built-in tools and function calling are used together.
         // The @google/genai SDK assembles the payload with camelCase field names
         // under params.config, so this hook patches camelCase only.
+        // Vertex AI (Gemini Enterprise Agent Platform) does not support this parameter
+        // and throws if defined, so restrict to google-generative-ai only.
         onPayload: (payload) => {
-          if (model.api === 'google-generative-ai' || model.api === 'google-vertex') {
+          if (model.api === 'google-generative-ai') {
             const p = payload as { config?: Record<string, unknown> }
             if (!p.config) p.config = {}
             if (!p.config.toolConfig) p.config.toolConfig = {}

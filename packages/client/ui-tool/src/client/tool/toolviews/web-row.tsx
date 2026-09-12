@@ -1,4 +1,4 @@
-// Web toolview registrant: the keyed toolview hole for the `web_search` and
+// Web toolview registrant: the keyed toolview hole for the `dsh_web_search` and
 // `web_fetch` tools. Registered under BOTH, since both declare the one `web`
 // render intent and render through the one WebBlock family; the row
 // discriminates on the toolName only to pick its icon and title. The row
@@ -21,9 +21,9 @@ import { CONVERSATION_NS as NS } from '../../locale.ts'
 /** Full row props: the toolview runtime share plus the standard locale seat. */
 type WebRowProps = ToolCallViewProps & PropsLocale<'conversation'>
 
-/** web_fetch reads one URL; web_search queries. Titles are figma literals. */
+/** web_fetch reads one URL; dsh_web_search queries. Titles are figma literals. */
 const WEB_TITLES: Record<string, string> = {
-  web_search: 'Search',
+  dsh_web_search: 'Search',
   web_fetch: 'Fetch',
 }
 
@@ -68,7 +68,7 @@ export const webToolview = {
    */
   apply(ctx: Context): void {
     ctx.slots.inject('tool.call.toolview', function* () {
-      yield ctx.slots.register({ name: 'tool.call.toolview', key: 'web_search', locale: NS }, WebRow)
+      yield ctx.slots.register({ name: 'tool.call.toolview', key: 'dsh_web_search', locale: NS }, WebRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'web_fetch', locale: NS }, WebRow)
     })
   },

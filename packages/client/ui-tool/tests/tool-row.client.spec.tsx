@@ -35,7 +35,7 @@ describe('tool-call-model', () => {
     expect(classifyTool('pwsh')).toBe('bash')
     expect(classifyTool('read')).toBe('read')
     expect(classifyTool('web_fetch')).toBe('read')
-    expect(classifyTool('web_search')).toBe('search')
+    expect(classifyTool('dsh_web_search')).toBe('search')
     expect(classifyTool('grep')).toBe('search')
     expect(classifyTool('write')).toBe('write')
     expect(classifyTool('edit')).toBe('edit')
@@ -111,8 +111,8 @@ describe('tool-call-model', () => {
   })
 
   it('joins multi-query web search arguments in the summary', () => {
-    expect(toolRowModel('web_search', running({
-      name: 'web_search',
+    expect(toolRowModel('dsh_web_search', running({
+      name: 'dsh_web_search',
       argsRaw: '{"queries":["first query","second\\nquery"]}',
     })).summary).toBe('first query, second')
   })

@@ -58,13 +58,13 @@ const resultFetch = (over?: Partial<Extract<ToolResultView, { card: 'web'; kind:
 })
 
 const runningSearch = (over?: Partial<RunningToolCall>): RunningToolCall => ({
-  callId: 'c1', name: 'web_search', argsRaw: SEARCH_ARGS,
+  callId: 'c1', name: 'dsh_web_search', argsRaw: SEARCH_ARGS,
   turn: 1, step: 1, time: 1_000, callView: { card: 'generic', title: 'Search', kind: 'search' }, subCalls: [], ...over,
 })
 
 const settledSearch = (over?: Partial<ToolResultNode>): ToolResultNode => ({
   kind: 'tool-result', seq: 10, time: 2_000, callId: 'c1',
-  call: { name: 'web_search', argsRaw: SEARCH_ARGS },
+  call: { name: 'dsh_web_search', argsRaw: SEARCH_ARGS },
   callTime: 1_000,
   content: [{ type: 'text', text: 'search text' }], isError: false,
   callView: { card: 'generic', title: 'Search', kind: 'search' }, resultView: resultSearch(), subCalls: [], ...over,
@@ -142,7 +142,7 @@ describe('chat row web body', () => {
 
   it('the WebRow collapses to the summary row, expanding to the full search card', () => {
     const globe = render(<IconGlobeOutline14 />).container.querySelector('svg')!.outerHTML
-    const view = render(<WebRow {...rowProps(settledSearch(), 'web_search')} />)
+    const view = render(<WebRow {...rowProps(settledSearch(), 'dsh_web_search')} />)
     // Collapsed: the summary row alone, no card in the DOM.
     expect(view.getByText('Search')).toBeTruthy()
     expect(view.container.querySelector('svg')?.outerHTML).toBe(globe)
@@ -168,7 +168,7 @@ describe('chat row web body', () => {
   })
 
   it('a running web call is the summary row alone, with nothing to expand', () => {
-    const view = render(<WebRow {...rowProps(runningSearch(), 'web_search')} />)
+    const view = render(<WebRow {...rowProps(runningSearch(), 'dsh_web_search')} />)
     expect(view.getByText('Search')).toBeTruthy()
     expect(view.queryByText('Titled')).toBeNull()
     // No card material and no expandable body: clicking the row reveals nothing.
@@ -179,7 +179,7 @@ describe('chat row web body', () => {
   it('a failed web call keeps the summary row without the card', () => {
     const view = render(<WebRow {...rowProps(settledSearch({
       isError: true, resultView: { card: 'generic' },
-    }), 'web_search')} />)
+    }), 'dsh_web_search')} />)
     expect(view.getByText('Search')).toBeTruthy()
     expect(view.container.querySelector('[data-web]')).toBeNull()
     // The row reflects the error state so the summary line still reads as failed.
@@ -258,7 +258,7 @@ describe('DetailsPanel web Output section', () => {
   }
 
   it('renders the search card at full source allowance', () => {
-    const view = mount(snapshot({ nodes: [settledSearch()] }), { turnSeq: 10, callId: 'c1', toolName: 'web_search' })
+    const view = mount(snapshot({ nodes: [settledSearch()] }), { turnSeq: 10, callId: 'c1', toolName: 'dsh_web_search' })
     expect(view.getByText('Titled')).toBeTruthy()
     expect(view.getByText('excerpt')).toBeTruthy()
     // The Input JSON section survives beside it.
@@ -279,7 +279,7 @@ describe('DetailsPanel web Output section', () => {
   it('a non-web result keeps the flattened pre form', () => {
     const view = mount(snapshot({
       nodes: [settledSearch({ callView: null, resultView: null })],
-    }), { turnSeq: 10, callId: 'c1', toolName: 'web_search' })
+    }), { turnSeq: 10, callId: 'c1', toolName: 'dsh_web_search' })
     expect(view.container.querySelector('[data-web]')).toBeNull()
     const output = view.getByText('输出').closest('section')
     expect(output?.querySelector('pre')?.textContent).toContain('search text')
@@ -302,7 +302,7 @@ describe('web toolview registration', () => {
       },
     } as unknown as import('@deepseek-ai/cordis').Context
     webToolview.apply(ctx)
-    expect(registered.map(r => r.key)).toEqual(['web_search', 'web_fetch'])
+    expect(registered.map(r => r.key)).toEqual(['dsh_web_search', 'web_fetch'])
     // Both keys claim the conversation locale seat ToolRow's body copy needs.
     expect(registered.map(r => r.locale)).toEqual(['conversation', 'conversation'])
     // One component under both keys, not two thin rows.

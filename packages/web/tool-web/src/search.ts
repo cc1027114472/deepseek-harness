@@ -1,5 +1,5 @@
 /**
- * The model-facing `web_search` tool: discover current information on the web.
+ * The model-facing `dsh_web_search` tool: discover current information on the web.
  * Execution goes through `ctx.web` — this module owns only the model-facing
  * schema, argument validation, the result-count bound, and result formatting,
  * never provider selection or network access.
@@ -22,7 +22,7 @@ export const WEB_SEARCH_MAX_RESULTS = 8
 /** Default upper bound on concurrent searches in one tool call. */
 export const WEB_SEARCH_MAX_QUERIES = 4
 
-/** Model-facing `web_search` arguments. */
+/** Model-facing `dsh_web_search` arguments. */
 interface WebSearchArgs {
   queries: string[]
 }
@@ -33,7 +33,7 @@ interface WebSearchArgs {
  * query-count bound. Exact duplicate strings are collapsed after the bound
  * check. Throws a plain `Error` otherwise.
  *
- * @param args - the schema-validated `web_search` arguments.
+ * @param args - the schema-validated `dsh_web_search` arguments.
  * @param maxQueries - the deployment's upper bound on queries in one call.
  * @returns the accepted queries in their first-occurrence order.
  */
@@ -106,7 +106,7 @@ export function presentSearchCall(args: WebSearchArgs): GenericCallView {
 }
 
 /**
- * The `web_search` tool's private `tool/result` `meta` payload: the structured
+ * The `dsh_web_search` tool's private `tool/result` `meta` payload: the structured
  * sources, the optional provider answer, and the truncation flag. Attached
  * opaquely (as `JsonValue`) on the tool result and persisted with the session
  * log, so `presentResult` reproduces the search card on replay. This projection
@@ -145,10 +145,10 @@ function projectSource(source: WebSearchSource): {
 }
 
 /**
- * Project a validated `web_search` output value into its replayable
+ * Project a validated `dsh_web_search` output value into its replayable
  * presentation meta ({@link WebSearchMeta} as opaque JSON).
  *
- * @param value - the canonical `web_search` output value (the seam's result shape).
+ * @param value - the canonical `dsh_web_search` output value (the seam's result shape).
  * @returns the structured sources, the truncation flag, and the answer when present.
  */
 export function searchMetaFromValue(value: WebSearchResult): JsonValue {
@@ -294,7 +294,7 @@ function mergeSearchResults(
 }
 
 /**
- * Register the `web_search` tool and its system-prompt guidance.
+ * Register the `dsh_web_search` tool and its system-prompt guidance.
  *
  * @param ctx - context whose `tools` and `systemPrompt` registries receive the
  *   registrations; both are effect-scoped and unregister on plugin dispose.
@@ -317,12 +317,12 @@ export function applyWebSearchTool(
     name: 'tool:web_search',
     order: 110,
     text: fetchEnabled
-      ? `Use the web_search tool to discover current information on the web. The required queries array accepts 1–${maxQueries} non-empty search queries; use a one-item array for a single search. It returns an optional answer plus a list of source URLs. Follow up with web_fetch when you need the full content of a specific result, and cite the relevant URLs as markdown links.`
-      : `Use the web_search tool to discover current information on the web. The required queries array accepts 1–${maxQueries} non-empty search queries; use a one-item array for a single search. It returns an optional answer plus a list of source URLs. Use the returned source snippets when available, and cite the relevant URLs as markdown links.`,
+      ? `Use the dsh_web_search tool to discover current information on the web. The required queries array accepts 1–${maxQueries} non-empty search queries; use a one-item array for a single search. It returns an optional answer plus a list of source URLs. Follow up with web_fetch when you need the full content of a specific result, and cite the relevant URLs as markdown links.`
+      : `Use the dsh_web_search tool to discover current information on the web. The required queries array accepts 1–${maxQueries} non-empty search queries; use a one-item array for a single search. It returns an optional answer plus a list of source URLs. Use the returned source snippets when available, and cite the relevant URLs as markdown links.`,
   })
 
   ctx.tools.register(defineTool({
-    name: 'web_search',
+    name: 'dsh_web_search',
     description: `Search the web for current information. Provide 1–${maxQueries} queries in the required queries array. Returns an optional summary answer and a list of source URLs.`,
     parameters: {
       queries: {
