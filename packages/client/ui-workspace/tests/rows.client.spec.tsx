@@ -429,6 +429,22 @@ describe('workspace browser rows', () => {
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
+  it('archived list mode offers unarchive instead of fork/archive', () => {
+    const onUnarchive = vi.fn()
+    const node: SessionNode = {
+      id: sid('s1'), title: 'Archived', blank: false, running: false,
+      runningSubagentCount: 0, completed: false, updatedAt: 0,
+    }
+    render(<SessionNodeItem node={node} currentId={undefined} now={0} onOpen={vi.fn()}
+      onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} onUnarchive={onUnarchive}
+      listMode="archived" t={t} />)
+    fireEvent.click(screen.getByRole('button', { name: '会话“Archived”的操作' }))
+    expect(screen.queryByRole('menuitem', { name: '分叉会话' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: '归档会话' })).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: '取消归档' }))
+    expect(onUnarchive).toHaveBeenCalledWith(node.id)
+  })
+
 
   it('shows the hover card after the dwell and suppresses it while the row menu is open', () => {
     vi.useFakeTimers()

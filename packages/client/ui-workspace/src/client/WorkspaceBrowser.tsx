@@ -243,6 +243,10 @@ type SessionTreeProps = Pick<
   onSessionRename: (sessionId: SessionNode['id'], currentTitle: string) => void
   /** Archive a session (row menu action; the row disappears on the state echo). */
   onSessionArchive: (sessionId: SessionNode['id']) => void
+  /** Restore a session from the archive set (archived-list menu action). */
+  onSessionUnarchive: (sessionId: SessionNode['id']) => void
+  /** Active list hides archives; archived list shows only them. */
+  listMode: 'active' | 'archived'
   /** Session order behavior: fixed after edits, or additionally promoted by user activity. */
   orderBy: SessionOrderBy
 }
@@ -250,7 +254,8 @@ type SessionTreeProps = Pick<
 /** The scrolling session tree; unmounting drops the sessions subscription and expand-all state. */
 function SessionTree({
   useSessions, startSession, open, forkSession, workspaces, archivedSessionIds,
-  onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive,
+  onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive, onSessionUnarchive,
+  listMode,
   insertWorkspaceBefore, insertSessionBefore, orderBy,
   groupExpansion, setGroupExpanded,
   sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t,
@@ -326,8 +331,8 @@ function SessionTree({
       ...(sessionOrderByAccount[UNGROUPED_KEY] === undefined
         ? {}
         : { ungroupedOrder: sessionOrderByAccount[UNGROUPED_KEY] }),
-    }),
-    [list, orderedWorkspaces, archivedSessionIds, expandedGroups, sessionOrderByAccount],
+    }, listMode),
+    [list, orderedWorkspaces, archivedSessionIds, expandedGroups, sessionOrderByAccount, listMode],
   )
   const now = Date.now()
   const commitSessionDrag = (activeDrag: DragState, over: NonNullable<DragState['over']>): void => {
@@ -519,7 +524,9 @@ function SessionTree({
                     onRename={onSessionRename}
                     onFork={forkSession}
                     onArchive={onSessionArchive}
-                    drag={dragProps}
+                    onUnarchive={onSessionUnarchive}
+                    listMode={listMode}
+                    drag={listMode === 'archived' ? undefined : dragProps}
                     t={t}
                   />
                 )
@@ -547,7 +554,8 @@ function SessionTree({
 
 /** The flat "In one list" body: every session is one draggable top-level row. */
 function FlatList({
-  useSessions, open, forkSession, onSessionRename, onSessionArchive, archivedSessionIds,
+  useSessions, open, forkSession, onSessionRename, onSessionArchive, onSessionUnarchive,
+  listMode, archivedSessionIds,
   orderBy, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, t,
 }: Pick<
   SessionTreeProps,
@@ -556,6 +564,8 @@ function FlatList({
   | 'forkSession'
   | 'onSessionRename'
   | 'onSessionArchive'
+  | 'onSessionUnarchive'
+  | 'listMode'
   | 'archivedSessionIds'
   | 'orderBy'
   | 'sessionOrderByAccount'
@@ -566,8 +576,8 @@ function FlatList({
 >) {
   const list = useSessions(s => s)
   const baseRows = useMemo(
-    () => deriveFlat(list, archivedSessionIds),
-    [list, archivedSessionIds],
+    () => deriveFlat(list, archivedSessionIds, listMode),
+    [list, archivedSessionIds, listMode],
   )
   const sessionIds = useMemo(() => baseRows.map(row => row.id), [baseRows])
   const previousOrderBy = useRef(orderBy)
@@ -619,9 +629,9 @@ function FlatList({
   const now = Date.now()
   return (
     <div className={clsx(css.treeBody, css.wide)}>
-      <div className={clsx(css.list, css.flatList)} role="tree" aria-label={t('section.sessions')}>
+      <div className={clsx(css.list, css.flatList)} role="tree" aria-label={listMode === 'archived' ? t('section.archived') : t('section.sessions')}>
         {rows.length === 0 && (
-          <div className={css.empty}>{t('empty.none')}</div>
+          <div className={css.empty}>{listMode === 'archived' ? t('empty.archived') : t('empty.none')}</div>
         )}
         {rows.map((node) => {
           const active = drag !== null
@@ -635,26 +645,30 @@ function FlatList({
               onRename={onSessionRename}
               onFork={forkSession}
               onArchive={onSessionArchive}
+              onUnarchive={onSessionUnarchive}
+              listMode={listMode}
               flat
-              drag={{
-                start: () => {
-                  dropCommitted.current = false
-                  setDrag({ accountKey: FLAT_SESSION_ORDER_KEY, sessionId: node.id, over: null })
-                },
-                active,
-                marker: active && drag.over?.id === node.id ? drag.over.half : null,
-                hover: (half) => {
-                  setDrag(current => current === null ? current : { ...current, over: { id: node.id, half } })
-                },
-                drop: (half) => {
-                  if (drag !== null) commitDrag(drag, { id: node.id, half })
-                },
-                end: () => {
-                  if (drag?.over !== null && drag?.over !== undefined) commitDrag(drag, drag.over)
-                  else setDrag(null)
-                  dropCommitted.current = false
-                },
-              }}
+              drag={listMode === 'archived'
+                ? undefined
+                : {
+                  start: () => {
+                    dropCommitted.current = false
+                    setDrag({ accountKey: FLAT_SESSION_ORDER_KEY, sessionId: node.id, over: null })
+                  },
+                  active,
+                  marker: active && drag.over?.id === node.id ? drag.over.half : null,
+                  hover: (half) => {
+                    setDrag(current => current === null ? current : { ...current, over: { id: node.id, half } })
+                  },
+                  drop: (half) => {
+                    if (drag !== null) commitDrag(drag, { id: node.id, half })
+                  },
+                  end: () => {
+                    if (drag?.over !== null && drag?.over !== undefined) commitDrag(drag, drag.over)
+                    else setDrag(null)
+                    dropCommitted.current = false
+                  },
+                }}
               t={t}
             />
           )
@@ -678,11 +692,12 @@ function SearchResults({
   open,
   workspaces,
   archivedSessionIds,
+  listMode,
   query,
   remote,
   resultLimit,
   t,
-}: Pick<SessionTreeProps, 'useSessions' | 'open' | 't'> & {
+}: Pick<SessionTreeProps, 'useSessions' | 'open' | 'listMode' | 't'> & {
   workspaces: readonly WorkspaceView[]
   archivedSessionIds: readonly SessionNode['id'][]
   query: string
@@ -694,8 +709,8 @@ function SearchResults({
     ? remote
     : { query, status: 'loading' as const, items: [], hasMore: false }
   const results = useMemo(
-    () => deriveSearchResults(list, workspaces, query, archivedSessionIds, currentRemote, resultLimit),
-    [list, workspaces, query, archivedSessionIds, currentRemote, resultLimit],
+    () => deriveSearchResults(list, workspaces, query, archivedSessionIds, currentRemote, resultLimit, listMode),
+    [list, workspaces, query, archivedSessionIds, currentRemote, resultLimit, listMode],
   )
   const pending = currentRemote.status === 'loading'
   const failed = currentRemote.status === 'error'
@@ -756,6 +771,7 @@ export function WorkspaceBrowser({
   deleteWorkspace,
   insertWorkspaceBefore,
   archiveSession,
+  unarchiveSession,
   insertSessionBefore,
   createWorkspace,
   searchSessions,
@@ -769,6 +785,7 @@ export function WorkspaceBrowser({
   const workspaces = useWorkspaces(state => state.items)
   const workspacePhase = useWorkspaces(state => state.phase)
   const archivedSessionIds = useWorkspaces(state => state.archivedSessionIds)
+  const [listMode, setListMode] = useState<'active' | 'archived'>('active')
   // Live occupancy of this surface's directory-flow hole (the same source the
   // flow reads): a composition without a picking affordance can add nothing.
   const directoryFlowAvailable = useDirectoryFlow(occupied => occupied)
@@ -971,6 +988,11 @@ export function WorkspaceBrowser({
       console.warn('session archive rejected:', reason)
     })
   }
+  const onSessionUnarchive = (sessionId: SessionNode['id']) => {
+    unarchiveSession(sessionId).catch((reason: unknown) => {
+      console.warn('session unarchive rejected:', reason)
+    })
+  }
 
   // Delete dialog is separate from the row so a successful removal can
   // unmount that row without tearing down the in-flight confirmation state.
@@ -1011,9 +1033,30 @@ export function WorkspaceBrowser({
     <div className={clsx(css.root, !wide && css.rail)}>
       <div className={css.sectionHeader}>
         {wide && (
-          <span className={clsx(css.sectionLabel, css.wide, searchExpanded && css.sectionLabelHidden)}>
-            {groupBy === 'flat' ? t('section.sessions') : t('section.workspaces')}
-          </span>
+          <div
+            className={clsx(css.listModeTabs, searchExpanded && css.sectionLabelHidden)}
+            role="tablist"
+            aria-label={t('listMode.aria')}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={listMode === 'active'}
+              className={clsx(css.listModeTab, listMode === 'active' && css.listModeTabActive)}
+              onClick={() => { setListMode('active') }}
+            >
+              {groupBy === 'flat' ? t('listMode.active') : t('section.workspaces')}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={listMode === 'archived'}
+              className={clsx(css.listModeTab, listMode === 'archived' && css.listModeTabActive)}
+              onClick={() => { setListMode('archived') }}
+            >
+              {t('listMode.archived')}
+            </button>
+          </div>
         )}
         {wide && (
           <div className={clsx(css.searchSlot, searchExpanded && css.searchSlotExpanded)}>
@@ -1148,6 +1191,7 @@ export function WorkspaceBrowser({
               open={open}
               workspaces={workspaces}
               archivedSessionIds={archivedSessionIds}
+              listMode={listMode}
               query={normalizedQuery}
               remote={remoteSearch}
               resultLimit={searchResultLimit}
@@ -1159,6 +1203,8 @@ export function WorkspaceBrowser({
               <FlatList
                 useSessions={useSessions} open={open} forkSession={forkSession}
                 onSessionRename={onSessionRename} onSessionArchive={onSessionArchive}
+                onSessionUnarchive={onSessionUnarchive}
+                listMode={listMode}
                 archivedSessionIds={archivedSessionIds}
                 orderBy={orderBy}
                 sessionOrderByAccount={sessionOrderByAccount}
@@ -1173,6 +1219,8 @@ export function WorkspaceBrowser({
                 useSessions={useSessions}
                 onSessionRename={onSessionRename}
                 onSessionArchive={onSessionArchive}
+                onSessionUnarchive={onSessionUnarchive}
+                listMode={listMode}
                 forkSession={forkSession}
                 workspaces={workspaces}
                 groupExpansion={groupExpansion}

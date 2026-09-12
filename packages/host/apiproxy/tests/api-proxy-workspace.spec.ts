@@ -568,4 +568,32 @@ describe('Host Workspace increments', () => {
     })
     abort.abort()
   })
+
+  it('unarchives a session from the global set and streams the updated snapshot', async () => {
+    const { api, root } = await harness()
+    const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'unarchive-home') }))).workspace
+    const sessionId = SessionId('session-to-unarchive')
+    expectOk(await api.sessions.create(request({ workspaceId: workspace.workspaceId, sessionId })))
+    expectOk(await api.workspace.archiveSession(request({ sessionId })))
+
+    const abort = new AbortController()
+    const stream: AsyncIterator<RpcRequest<HostFrame>> =
+      api.events.host(request({}), abort.signal)[Symbol.asyncIterator]()
+    const changed = nextHostFrame(stream)
+    expect(expectOk(await api.workspace.unarchiveSession(request({ sessionId }))).archivedSessionIds)
+      .toEqual([])
+    expect(await changed).toMatchObject({
+      payload: { type: 'host/archived-sessions-changed', archivedSessionIds: [] },
+    })
+    expect(expectOk(await api.workspace.list(request({}))).archivedSessionIds).toEqual([])
+    expect(expectOk(await api.workspace.list(request({}))).items[0]?.sessionIds).toEqual([sessionId])
+
+    const after = nextHostFrame(stream)
+    expect(expectOk(await api.workspace.unarchiveSession(request({ sessionId }))).archivedSessionIds)
+      .toEqual([])
+    const otherSession = SessionId('session-after-unarchive')
+    expectOk(await api.sessions.create(request({ workspaceId: workspace.workspaceId, sessionId: otherSession })))
+    expect((await after).payload.type).not.toBe('host/archived-sessions-changed')
+    abort.abort()
+  })
 })

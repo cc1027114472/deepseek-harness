@@ -77,6 +77,58 @@
     visibility 0s linear;
 }
 
+.listModeTabs {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 55%;
+  min-width: 0;
+  margin-right: auto;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  opacity: 1;
+  visibility: visible;
+  transition:
+    max-width 180ms var(--ds-ease-in-out),
+    opacity 120ms var(--ds-ease-in-out),
+    visibility 0s linear;
+}
+
+.listModeTabs.sectionLabelHidden {
+  max-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    max-width 180ms var(--ds-ease-in-out),
+    opacity 120ms var(--ds-ease-in-out),
+    visibility 0s linear 180ms;
+}
+
+.listModeTab {
+  flex: none;
+  border: none;
+  border-radius: 8px;
+  padding: 2px 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font: inherit;
+  line-height: 20px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.listModeTab:hover {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.listModeTabActive {
+  background: var(--dsw-alias-bg-primary, var(--dsw-alias-interactive-bg-hover));
+  color: var(--dsw-alias-label-primary);
+}
+
 .sectionLabelHidden {
   max-width: 0;
   margin-right: -4px;
