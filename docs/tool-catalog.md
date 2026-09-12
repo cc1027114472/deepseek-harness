@@ -40,7 +40,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-experimental-tool-agent-team` | `followup_task`, `interrupt_agent`, `list_agents`, `send_message`, `spawn_teammate`, `team_task_create`, `team_task_get`, `team_task_list`, `team_task_update`, `wait_agent` | `ctx.tools`, `ctx.systemPrompt`, `ctx.agentTeams`, `an exact live Team member Agent` | `tool/call`, `team/member`, `team/message/queued`, `team/message/delivered`, `team/task`, `tool/result` | - | All ten tools are scoped to implicit Team Leads and durable teammates. The shipped dsh-base bundle keeps the package disabled; the documented Agent Teams profile patch enables it while disabling the legacy continuable-child control names. |
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`, `owning Agent session` | `tool/call`, `todo/write`, `tool/result` | - | todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`, `ctx.workflowEngine`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents the script children)` | `tool/call`, `tool/result` | - | - |
-| `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools`, `ctx.web`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps. |
+| `@deepseek-ai/dsh-tool-web` | `dsh_web_search`, `web_fetch` | `ctx.tools`, `ctx.web`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps. |
 
 <a id="deepseek-aidsh-tool-ask-user"></a>
 
@@ -122,7 +122,7 @@ ask_user_question pauses the tool call until the active UI provider returns a hu
 
 ### `run_code`
 
-Execute a TypeScript program against the available tools. Takes two required arguments: `code`, the BODY of an async function (erasable syntax only; top-level `await` and `return` work), and `description`, a short UI label that is never a substitute for `code`. Call tools as `await tools.name(args)` per the declarations in the system prompt. Only what you print or return is program output — curate it. Image-bearing subtool results are attached after the run.
+Execute a TypeScript program against the available tools. Takes two required arguments: `code` and `description`. **`code` is the program body and MUST be provided on every call** — a call with only `description` is rejected immediately. `description` is a short UI label (5-10 words) that is never a substitute for `code`. The `code` body is an async function (erasable syntax only; top-level `await` and `return` work). Call tools as `await tools.name(args)` per the declarations in the system prompt. Only what you print or return is program output — curate it. Image-bearing subtool results are attached after the run.
 
 ```json
 {
@@ -134,12 +134,11 @@ Execute a TypeScript program against the available tools. Takes two required arg
     },
     "description": {
       "type": "string",
-      "description": "Clear, concise description of what this program does in active voice, 5-10 words (shown in the UI). This is a label only — never a substitute for `code`. Examples: \"Count TODO markers across packages\"; \"Read failing test and its fixture\"; \"Rename config key in every cordis.yml\"."
+      "description": "Clear, concise description of what this program does in active voice, 5-10 words (shown in the UI). If omitted, a default label is used. **WARNING: this is a label only — NEVER a substitute for `code`. You MUST provide `code` (the program body) on every call. A call with only `description` is REJECTED immediately.** Examples: \"Count TODO markers across packages\"; \"Read failing test and its fixture\"; \"Rename config key in every cordis.yml\"."
     }
   },
   "required": [
-    "code",
-    "description"
+    "code"
   ]
 }
 ```
@@ -193,7 +192,7 @@ Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs 
     },
     "description": {
       "type": "string",
-      "description": "Clear, concise description of what this command does in active voice, 5-10 words (shown in the UI). Examples: \"ls\" → \"List files in current directory\"; \"git status\" → \"Show working tree status\"; \"npm install\" → \"Install package dependencies\"."
+      "description": "Clear, concise description of what this command does in active voice, 5-10 words (shown in the UI). If omitted, the command itself is used as a label. Examples: \"ls\" → \"List files in current directory\"; \"git status\" → \"Show working tree status\"; \"npm install\" → \"Install package dependencies\"."
     },
     "timeoutMs": {
       "type": "number",
@@ -209,8 +208,7 @@ Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs 
     }
   },
   "required": [
-    "command",
-    "description"
+    "command"
   ]
 }
 ```
@@ -237,7 +235,7 @@ Execute a PowerShell command (`pwsh -Command`) and return its stdout/stderr. Eac
     },
     "description": {
       "type": "string",
-      "description": "Clear, concise description of what this command does in active voice, 5-10 words (shown in the UI). Examples: \"ls\" → \"List files in current directory\"; \"git status\" → \"Show working tree status\"; \"Get-Process\" → \"List running processes\"."
+      "description": "Clear, concise description of what this command does in active voice, 5-10 words (shown in the UI). If omitted, the command itself is used as a label. Examples: \"ls\" → \"List files in current directory\"; \"git status\" → \"Show working tree status\"; \"Get-Process\" → \"List running processes\"."
     },
     "timeoutMs": {
       "type": "number",
@@ -253,8 +251,7 @@ Execute a PowerShell command (`pwsh -Command`) and return its stdout/stderr. Eac
     }
   },
   "required": [
-    "command",
-    "description"
+    "command"
   ]
 }
 ```
@@ -2173,28 +2170,7 @@ Source: [`packages/workflow/tool-workflow/src/index.ts`](../packages/workflow/to
 
 ## `@deepseek-ai/dsh-tool-web`
 
-### `web_fetch`
-
-Fetch the content of a specific HTTP(S) URL and return it decoded to text.
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "url": {
-      "type": "string",
-      "description": "The HTTP(S) URL to fetch."
-    }
-  },
-  "required": [
-    "url"
-  ]
-}
-```
-
-Source: [`packages/web/tool-web/src/index.ts`](../packages/web/tool-web/src/index.ts)
-
-### `web_search`
+### `dsh_web_search`
 
 Search the web for current information. Provide 1–4 queries in the required queries array. Returns an optional summary answer and a list of source URLs.
 
@@ -2212,6 +2188,27 @@ Search the web for current information. Provide 1–4 queries in the required qu
   },
   "required": [
     "queries"
+  ]
+}
+```
+
+Source: [`packages/web/tool-web/src/index.ts`](../packages/web/tool-web/src/index.ts)
+
+### `web_fetch`
+
+Fetch the content of a specific HTTP(S) URL and return it decoded to text.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "url": {
+      "type": "string",
+      "description": "The HTTP(S) URL to fetch."
+    }
+  },
+  "required": [
+    "url"
   ]
 }
 ```

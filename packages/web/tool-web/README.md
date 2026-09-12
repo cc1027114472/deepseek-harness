@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-The model-facing web tool suite — `web_search` and `web_fetch` — over the [web capability seam](../web/README.md) (`ctx.web`). It owns model-facing concerns only: tool names, JSON schemas, snake_case argument names, prompt sections, the result-count bound, result formatting, HTML→markdown presentation, and the UI presentation projection — `presentCall`, `presentResult` (a `card: 'web'` result card discriminated by `kind: 'search' | 'fetch'`), and the `output.presentationMeta` that carries the structured search sources or the fetch summary the lossy render text cannot (see the [web-result-card Agent Note](../../../.agents/notes/implemented/feature/2026-07-30-web-result-card.md)). All web access goes through `ctx.web`; this package never imports a concrete provider. Neither tool exposes a model-facing timeout — each tool's cooperative tool-call budget is declared here via config (`fetchTimeoutMs`/`searchTimeoutMs`, attached as `ToolDefinition.timeoutMs`) and enforced by [`@deepseek-ai/dsh-tool-call-timeout-policy`](../../guard/timeout-policy/README.md) (a `tools/execute` wrapper). Single operations forward `exec.signal`; a multi-query search fuses it with batch cancellation so a failed query aborts its siblings.
+The model-facing web tool suite — `dsh_web_search` and `web_fetch` — over the [web capability seam](../web/README.md) (`ctx.web`). It owns model-facing concerns only: tool names, JSON schemas, snake_case argument names, prompt sections, the result-count bound, result formatting, HTML→markdown presentation, and the UI presentation projection — `presentCall`, `presentResult` (a `card: 'web'` result card discriminated by `kind: 'search' | 'fetch'`), and the `output.presentationMeta` that carries the structured search sources or the fetch summary the lossy render text cannot (see the [web-result-card Agent Note](../../../.agents/notes/implemented/feature/2026-07-30-web-result-card.md)). All web access goes through `ctx.web`; this package never imports a concrete provider. Neither tool exposes a model-facing timeout — each tool's cooperative tool-call budget is declared here via config (`fetchTimeoutMs`/`searchTimeoutMs`, attached as `ToolDefinition.timeoutMs`) and enforced by [`@deepseek-ai/dsh-tool-call-timeout-policy`](../../guard/timeout-policy/README.md) (a `tools/execute` wrapper). Single operations forward `exec.signal`; a multi-query search fuses it with batch cancellation so a failed query aborts its siblings.
 
 Each tool is registered independently; a product that wants only one disables the other via config (`{ search: false }` / `{ fetch: false }`). Search guidance mentions `web_fetch` only when fetch is also config-enabled; a search-only composition instead tells the model to use returned snippets and cite their URLs.
 
@@ -10,7 +10,7 @@ Each tool is registered independently; a product that wants only one disables th
 
 | Tool | Args | Behavior |
 |---|---|---|
-| `web_search` | `queries` (required string[]) | Discovery. Returns an optional answer plus source URLs. It runs one to `searchMaxQueries` distinct searches concurrently and merges their sources in round-robin order before applying the combined `searchMaxResults` cap. A one-item array performs one search. Exact duplicate queries run once. Any failed search aborts the remaining batch, which settles before the call returns an error. Neither bound is model-facing. |
+| `dsh_web_search` | `queries` (required string[]) | Discovery. Returns an optional answer plus source URLs. It runs one to `searchMaxQueries` distinct searches concurrently and merges their sources in round-robin order before applying the combined `searchMaxResults` cap. A one-item array performs one search. Exact duplicate queries run once. Any failed search aborts the remaining batch, which settles before the call returns an error. Neither bound is model-facing. |
 | `web_fetch` | `url` (string) | Retrieves a specific URL. HTML bodies are rendered to markdown (turndown with GFM tables/strikethrough); text bodies pass through. A non-2xx status is reported, not an error. The tool-call timeout is deployment policy (`dsh-tool-call-timeout-policy`), not a model argument. |
 
 Both tools opt into concurrent scheduling because provider reads return content without mutating parent-agent state.
@@ -21,12 +21,12 @@ The normalized service results are also the canonical tool values: `WebSearchRes
 
 | Key | Default | Meaning |
 |---|---|---|
-| `search` | `true` | Register `web_search`. |
+| `search` | `true` | Register `dsh_web_search`. |
 | `fetch` | `true` | Register `web_fetch`. |
-| `searchMaxResults` | `8` | Upper bound on sources returned by one `web_search` call (the seam truncates each provider list; the tool also caps a combined multi-query list). |
-| `searchMaxQueries` | `4` | Upper bound on queries accepted by one `web_search` call. The configured value appears in its prompt guidance and schema descriptions. |
+| `searchMaxResults` | `8` | Upper bound on sources returned by one `dsh_web_search` call (the seam truncates each provider list; the tool also caps a combined multi-query list). |
+| `searchMaxQueries` | `4` | Upper bound on queries accepted by one `dsh_web_search` call. The configured value appears in its prompt guidance and schema descriptions. |
 | `fetchTimeoutMs` | `30000` | Cooperative tool-call timeout budget (ms) for `web_fetch`. |
-| `searchTimeoutMs` | `30000` | Cooperative tool-call timeout budget (ms) for `web_search`. |
+| `searchTimeoutMs` | `30000` | Cooperative tool-call timeout budget (ms) for `dsh_web_search`. |
 | `fetchMaxOutputChars` | `200000` | Cap on source characters converted synchronously and on one complete `web_fetch` output (header, rendered body, and footer); a cut body gets the truncation notice when it fits. |
 
 `searchMaxQueries` bounds the accepted array before exact-string deduplication, provider fan-out, and combined provider-answer growth; validation rejects an oversized array before any search starts, then dispatch keeps the first occurrence of each query. Together with each provider's own controls such as `maxUses`, these independent settings are the product's search budgets; the generic seam does not expose provider-internal native-search accounting. `fetchTimeoutMs`/`searchTimeoutMs` declare each tool's cooperative timeout budget (attached as `ToolDefinition.timeoutMs`), enforced by [`@deepseek-ai/dsh-tool-call-timeout-policy`](../../guard/timeout-policy/README.md); the model-facing schema exposes no timeout argument. `fetchMaxOutputChars` bounds both synchronous conversion work and the complete rendered result: only that many source characters are converted, and the header, converted prefix, and truncation notice are then capped together. The default leaves headroom above the local provider's 100,000-character body cap, but rendered expansion can still make the final bound truncate the result.
@@ -53,19 +53,19 @@ Search and fetch contribute the web-search and web-fetch guidance below. Search 
 ##### Web search guidance with fetch enabled
 
 ```markdown
-Use the web_search tool to discover current information on the web. The required queries array accepts 1–4 non-empty search queries; use a one-item array for a single search. It returns an optional answer plus a list of source URLs. Follow up with web_fetch when you need the full content of a specific result, and cite the relevant URLs as markdown links.
+Use the dsh_web_search tool to discover current information on the web. The required queries array accepts 1–4 non-empty search queries; use a one-item array for a single search. It returns an optional answer plus a list of source URLs. Follow up with web_fetch when you need the full content of a specific result, and cite the relevant URLs as markdown links.
 ```
 
 ##### Web search-only guidance
 
 ```markdown
-Use the web_search tool to discover current information on the web. The required queries array accepts 1–4 non-empty search queries; use a one-item array for a single search. It returns an optional answer plus a list of source URLs. Use the returned source snippets when available, and cite the relevant URLs as markdown links.
+Use the dsh_web_search tool to discover current information on the web. The required queries array accepts 1–4 non-empty search queries; use a one-item array for a single search. It returns an optional answer plus a list of source URLs. Use the returned source snippets when available, and cite the relevant URLs as markdown links.
 ```
 
 ##### Web fetch guidance
 
 ```markdown
-Use the web_fetch tool to retrieve the content of a specific HTTP(S) URL (for example a result from web_search). It returns the page content decoded to text. Cite the URL as a markdown link when you use its content.
+Use the web_fetch tool to retrieve the content of a specific HTTP(S) URL (for example a result from dsh_web_search). It returns the page content decoded to text. Cite the URL as a markdown link when you use its content.
 ```
 
 #### Token effect
@@ -80,7 +80,7 @@ Prefix-stable while enabled tools, scope, and guidance text are unchanged. Confi
 
 #### What the model sees
 
-The model sees the generated [`web_search` and `web_fetch` schemas](../../../docs/tool-catalog.md#deepseek-aidsh-tool-web). Result-count and timeout budgets are deployment settings, not model arguments.
+The model sees the generated [`dsh_web_search` and `web_fetch` schemas](../../../docs/tool-catalog.md#deepseek-aidsh-tool-web). Result-count and timeout budgets are deployment settings, not model arguments.
 
 #### Token effect
 
@@ -108,7 +108,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 #### What the model sees
 
-If any query in a multi-query call fails, `web_search` aborts the other searches, waits for every started search to settle, discards successful results, and returns `Error: <message>` for the first failure.
+If any query in a multi-query call fails, `dsh_web_search` aborts the other searches, waits for every started search to settle, discards successful results, and returns `Error: <message>` for the first failure.
 
 #### Token effect
 

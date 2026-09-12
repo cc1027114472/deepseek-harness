@@ -314,7 +314,7 @@ export function applyWebSearchTool(
   fetchEnabled: boolean,
 ): void {
   ctx.systemPrompt.section({
-    name: 'tool:web_search',
+    name: 'tool:dsh_web_search',
     order: 110,
     text: fetchEnabled
       ? `Use the dsh_web_search tool to discover current information on the web. The required queries array accepts 1–${maxQueries} non-empty search queries; use a one-item array for a single search. It returns an optional answer plus a list of source URLs. Follow up with web_fetch when you need the full content of a specific result, and cite the relevant URLs as markdown links.`

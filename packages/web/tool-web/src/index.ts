@@ -1,5 +1,5 @@
 /**
- * Model-facing `web_search` and `web_fetch` tools over `ctx.web`. This package owns schemas,
+ * Model-facing `dsh_web_search` and `web_fetch` tools over `ctx.web`. This package owns schemas,
  * validation, prompt guidance, limits, and presentation, never concrete providers. Enablement
  * controls tool registration; an enabled tool remains visible when its provider is unavailable
  * and fails with a structured error at execution time.
@@ -35,17 +35,17 @@ export const DEFAULT_FETCH_MAX_OUTPUT_CHARS = 200_000
 
 /** Plugin config: which web tools to register, search bounds, per-tool budgets, and the fetch output cap. */
 export interface Config {
-  /** Register `web_search`. Defaults to true. */
+  /** Register `dsh_web_search`. Defaults to true. */
   search?: boolean
   /** Register `web_fetch`. Defaults to true. */
   fetch?: boolean
-  /** Upper bound on sources returned by one `web_search` call. */
+  /** Upper bound on sources returned by one `dsh_web_search` call. */
   searchMaxResults?: number
-  /** Upper bound on queries accepted by one `web_search` call. */
+  /** Upper bound on queries accepted by one `dsh_web_search` call. */
   searchMaxQueries?: number
   /** Cooperative timeout budget (ms) for `web_fetch`. Defaults to 30000. */
   fetchTimeoutMs?: number
-  /** Cooperative timeout budget (ms) for `web_search`. Defaults to 30000. */
+  /** Cooperative timeout budget (ms) for `dsh_web_search`. Defaults to 30000. */
   searchTimeoutMs?: number
   /** Cap on source characters converted and complete `web_fetch` output characters. Defaults to 200000. */
   fetchMaxOutputChars?: number
