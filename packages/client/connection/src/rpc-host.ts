@@ -12,7 +12,7 @@ import {
   type ServerResponse as RpcServerResponse,
 } from '@deepseek-ai/dsh-host-apiproxy/api'
 import { bridge, type FetchHandler } from './http-bridge.ts'
-import { isTrustedApiRequest } from './api-request-trust.ts'
+import { isTrustedApiRequest, assertTrustedAuthority } from './api-request-trust.ts'
 import { API_PATH } from './api-path.ts'
 import type {
   ConnectionRpcEndpointMatcher,
@@ -48,8 +48,22 @@ export class HostConnectionService extends Service implements HostConnectionHand
    * @param ctx - owning Connection plugin context.
    * @param trustedHosts - deployment authorities accepted by trusted-host channels.
    */
-  constructor(ctx: Context, private readonly trustedHosts: readonly string[]) {
+  constructor(ctx: Context, private readonly trustedHosts: string[]) {
     super(ctx, 'connection')
+  }
+
+  /** Dynamically trust a host authority, returning an unregister disposer. */
+  trustAuthority(authority: string): () => void {
+    assertTrustedAuthority(authority)
+    if (!this.trustedHosts.includes(authority)) {
+      this.trustedHosts.push(authority)
+    }
+    return () => {
+      const idx = this.trustedHosts.indexOf(authority)
+      if (idx !== -1) {
+        this.trustedHosts.splice(idx, 1)
+      }
+    }
   }
 
   /** Generic channel registry scoped to the Context reading this service. */

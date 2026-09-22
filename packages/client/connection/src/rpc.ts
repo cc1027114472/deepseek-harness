@@ -56,6 +56,8 @@ export interface HostConnectionRpc {
 export interface HostConnectionHandle {
   /** Generic RPC channel registry. */
   readonly rpc: HostConnectionRpc
+  /** Dynamically trust an external host authority, returning an unregister disposer. */
+  trustAuthority?(authority: string): () => void
 }
 
 /** Client caller for logical RPC channels carried by the current transport. */
