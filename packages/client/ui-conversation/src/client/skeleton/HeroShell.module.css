@@ -27,11 +27,10 @@
    badge is a product addition outside that source: a mono superscript pill
    riding the title's top-right. */
 .headline {
-  display: grid;
-  grid-template-columns: 34px auto auto;
-  column-gap: 10px;
+  display: flex;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   font-size: 26px;
   line-height: 32px;
   font-weight: 500;

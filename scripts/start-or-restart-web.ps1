@@ -1,7 +1,11 @@
 $ErrorActionPreference = 'Stop'
-$Host.UI.RawUI.WindowTitle = 'DeepSeek Harness'
+$Host.UI.RawUI.WindowTitle = '魔丸 - Mowan Harness'
 $repo = Split-Path -Parent $PSScriptRoot
 Set-Location $repo
+
+if (-not $env:MOWAN_HOME) {
+  $env:MOWAN_HOME = "$env:USERPROFILE\.mowan"
+}
 
 $log = Join-Path $PSScriptRoot 'start-web.last.log'
 function Write-Log([string]$message) {
@@ -11,7 +15,7 @@ function Write-Log([string]$message) {
 }
 
 Set-Content -Path $log -Value '' -Encoding UTF8
-Write-Log 'DeepSeek Harness start/restart'
+Write-Log '魔丸 (Mowan) start/restart'
 Write-Log ("Repo: {0}" -f $repo)
 
 $node = 'C:\Program Files\nodejs\node.exe'

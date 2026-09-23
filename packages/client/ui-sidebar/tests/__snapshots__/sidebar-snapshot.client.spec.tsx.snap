@@ -27,10 +27,10 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
           >
             <svg
               aria-hidden="true"
-              data-content="965fe321"
-              fill="none"
-              height="17.6580310880829"
-              viewBox="0 0 23.16 17.04"
+              data-content="4e69006f"
+              height="24"
+              style="display: inline-block; vertical-align: middle; flex-shrink: 0;"
+              viewBox="0 0 128 128"
               width="24"
             />
           </div>
@@ -122,10 +122,10 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
             >
               <svg
                 aria-hidden="true"
-                data-content="965fe321"
-                fill="none"
-                height="17.6580310880829"
-                viewBox="0 0 23.16 17.04"
+                data-content="4e69006f"
+                height="24"
+                style="display: inline-block; vertical-align: middle; flex-shrink: 0;"
+                viewBox="0 0 128 128"
                 width="24"
               />
             </div>
@@ -140,14 +140,14 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
               <span
                 class="fallbackBrandName"
               >
-                DSH Local Build
-              </span>
-              <span
-                class="buildRevision"
-              >
-                abc1234
+                魔丸
               </span>
             </div>
+          </span>
+          <span
+            class="buildRevision"
+          >
+            v2.0.1
           </span>
         </span>
       </button>
@@ -248,10 +248,10 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
             >
               <svg
                 aria-hidden="true"
-                data-content="965fe321"
-                fill="none"
-                height="17.6580310880829"
-                viewBox="0 0 23.16 17.04"
+                data-content="4e69006f"
+                height="24"
+                style="display: inline-block; vertical-align: middle; flex-shrink: 0;"
+                viewBox="0 0 128 128"
                 width="24"
               />
             </div>
@@ -266,14 +266,14 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
               <span
                 class="fallbackBrandName"
               >
-                DSH Local Build
-              </span>
-              <span
-                class="buildRevision"
-              >
-                abc1234
+                魔丸
               </span>
             </div>
+          </span>
+          <span
+            class="buildRevision"
+          >
+            v2.0.1
           </span>
         </span>
       </button>

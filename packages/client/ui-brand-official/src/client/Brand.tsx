@@ -1,4 +1,4 @@
-import { BrandWordmark, FishLogo } from '@deepseek-ai/dsh-client-ui-primitives'
+import { FishLogo } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { HeroBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SidebarBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 
@@ -18,5 +18,18 @@ export function OfficialBrandMark({ size, className }: OfficialBrandMarkProps) {
  * @returns the official name wordmark.
  */
 export function OfficialBrandName() {
-  return <BrandWordmark includeMark={false} />
+  return (
+    <span
+      style={{
+        fontSize: '15px',
+        fontWeight: 600,
+        letterSpacing: '0.04em',
+        color: 'var(--dsw-alias-label-primary, currentColor)',
+        lineHeight: 1,
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+      }}
+    >
+      魔丸
+    </span>
+  )
 }

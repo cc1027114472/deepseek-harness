@@ -165,14 +165,7 @@ func main() {
 	port := *portFlag
 
 	if port == 0 {
-		// Auto-detection: prefer 3090, but fallback to 3080 if an instance is already running there
-		if checkPortActive(3090) {
-			port = 3090
-		} else if checkPortActive(3080) {
-			port = 3080
-		} else {
-			port = 3090
-		}
+		port = 3090
 	}
 
 	serviceURL := fmt.Sprintf("http://127.0.0.1:%d", port)
@@ -207,7 +200,7 @@ func main() {
 		status, err := fetchTunnelStatus(serviceURL)
 		if err != nil {
 			if tray != nil {
-				tray.ShowToast("公网穿透", "无法连接本地 Harness 服务，请稍候再试。")
+				tray.ShowToast("公网穿透", "无法连接本地魔丸服务，请稍候再试。")
 			}
 			return
 		}
@@ -235,7 +228,7 @@ func main() {
 			}
 		} else {
 			if tray != nil {
-				tray.ShowToast("重启服务", "本地 Harness 服务正在重新启动...")
+				tray.ShowToast("重启服务", "本地魔丸服务正在重新启动...")
 			}
 			go func() {
 				if waitForReady(serviceURL, 20*time.Second) {

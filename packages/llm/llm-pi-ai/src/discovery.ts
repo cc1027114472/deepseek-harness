@@ -38,6 +38,7 @@ import { catalogModels } from './catalog.ts'
 const LISTABLE_PROTOCOLS: ReadonlySet<string> = new Set([
   'openai-completions',
   'openai-responses',
+  'google-generative-ai',
 ])
 
 /**
@@ -130,16 +131,46 @@ async function readBounded(response: Response, url: string): Promise<string> {
   return new TextDecoder().decode(body)
 }
 
+/** One entry of a Gemini-compatible `GET /models` reply. */
+interface GeminiListingEntry {
+  name?: unknown
+  displayName?: unknown
+  inputTokenLimit?: unknown
+  outputTokenLimit?: unknown
+}
+
 /**
- * Read one OpenAI-compatible listing reply. Entries without a usable id are
+ * Read one OpenAI-compatible or Gemini-compatible listing reply. Entries without a usable id are
  * skipped rather than failing the whole interrogation: a single malformed row
  * should not deny the user the rest of a working endpoint's catalog.
  */
 function readListing(body: unknown): LlmDiscoveredModel[] {
-  const data = (body as { data?: unknown } | null)?.data
+  const container = body as { data?: unknown; models?: unknown } | null
+  const geminiModels = container?.models
+  if (Array.isArray(geminiModels)) {
+    const models: LlmDiscoveredModel[] = []
+    for (const raw of geminiModels) {
+      const entry = raw as GeminiListingEntry | null
+      const rawName = label(entry?.name)
+      if (rawName === undefined) continue
+      const id = rawName.replace(/^models\//, '')
+      const name = label(entry?.displayName) ?? id
+      const contextWindow = capacity(entry?.inputTokenLimit)
+      const maxTokens = capacity(entry?.outputTokenLimit)
+      models.push({
+        id,
+        name,
+        ...contextWindow === undefined ? {} : { contextWindow },
+        ...maxTokens === undefined ? {} : { maxTokens },
+      })
+    }
+    return models
+  }
+
+  const data = container?.data
   if (!Array.isArray(data)) {
     throw new LlmError(
-      'the endpoint\'s model listing has no "data" array; enter this provider\'s models by hand',
+      'the endpoint\'s model listing has no "data" or "models" array; enter this provider\'s models by hand',
       'DISCOVERY_FAILED',
     )
   }
@@ -245,7 +276,10 @@ export async function discoverModels(
       method: 'GET',
       headers: {
         accept: 'application/json',
-        ...apiKey === undefined ? {} : { authorization: `Bearer ${apiKey}` },
+        ...apiKey === undefined ? {} : {
+          authorization: `Bearer ${apiKey}`,
+          'x-goog-api-key': apiKey,
+        },
         ...attributionHeaders(),
       },
       ...request.signal === undefined ? {} : { signal: request.signal },

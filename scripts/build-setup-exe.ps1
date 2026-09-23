@@ -1,8 +1,8 @@
-# Build Mowan-Harness-Setup.exe installer
+# Build Mowan-Agent-Setup.exe installer
 $ErrorActionPreference = "Stop"
 
 Write-Host "======================================================" -ForegroundColor Cyan
-Write-Host "      Mowan Harness Windows Setup.exe Builder         " -ForegroundColor Cyan
+Write-Host "      Mowan Agent (魔丸) Windows Setup.exe Builder    " -ForegroundColor Cyan
 Write-Host "======================================================" -ForegroundColor Cyan
 
 $root = $PSScriptRoot | Split-Path -Parent
@@ -13,9 +13,9 @@ Write-Host "`n[1/5] Building launcher..." -ForegroundColor Yellow
 $env:GOCACHE = Join-Path $root ".gocache"
 Push-Location "$root\launcher"
 $env:GOOS = "windows"; $env:GOARCH = "amd64"
-go build -ldflags="-H windowsgui -s -w" -o "$root\Mowan-Harness.exe" .
+go build -ldflags="-H windowsgui -s -w" -o "$root\Mowan-Agent.exe" .
 Pop-Location
-Write-Host "✓ Launcher built: Mowan-Harness.exe" -ForegroundColor Green
+Write-Host "✓ Launcher built: Mowan-Agent.exe" -ForegroundColor Green
 
 # 2. Prepare embedded node runtime
 Write-Host "`n[2/5] Preparing embedded Node.js runtime..." -ForegroundColor Yellow
@@ -31,48 +31,45 @@ go build -ldflags="-H windowsgui -s -w" -o "$root\installer\installer-base.exe" 
 Pop-Location
 Write-Host "✓ Installer shell built: installer\installer-base.exe" -ForegroundColor Green
 
-# 4. Pack payload archive
-Write-Host "`n[4/5] Packing full self-contained payload archive (tar.exe)..." -ForegroundColor Yellow
+# 4. Generate clean flat bundle and pack payload archive
+Write-Host "`n[4/5] Generating hoisted flat bundle and packing archive..." -ForegroundColor Yellow
+node "$root\scripts\bundle-flat.mjs"
+
 $distDir = "$root\dist"
-New-Item -ItemType Directory -Force -Path $distDir | Out-Null
+$flatDir = "$distDir\flat-bundle"
 $payloadZip = "$distDir\payload.zip"
 if (Test-Path $payloadZip) { Remove-Item -Force $payloadZip }
 
-# Compress necessary runtime files
-tar.exe -c -a -f $payloadZip `
-    --exclude=".git*" `
-    --exclude=".gocache*" `
-    --exclude="dist*" `
-    --exclude="installer*" `
-    --exclude="launcher*" `
-    --exclude="tests*" `
-    --exclude="packages/*/*/node_modules*" `
-    --exclude="packages/*/*/src*" `
-    --exclude="packages/*/*/tests*" `
-    --exclude="apps/*/node_modules*" `
-    --exclude="vendor/*/node_modules*" `
-    --exclude="native/*/*/node_modules*" `
-    --exclude="*.ts" `
-    --exclude="*.map" `
-    --exclude="*.log" `
-    Mowan-Harness.exe runtime apps packages vendor node_modules package.json pnpm-workspace.yaml
+Push-Location $flatDir
+if (Get-Command 7z -ErrorAction SilentlyContinue) {
+    & 7z a -tzip -mx=1 -mmt=on -bso0 -bsp0 $payloadZip .
+} else {
+    tar.exe -c -a -f $payloadZip *
+}
+Pop-Location
 
 $zipSizeMB = [math]::Round((Get-Item $payloadZip).Length / 1MB, 2)
 Write-Host "✓ Payload archive created: $payloadZip ($zipSizeMB MB)" -ForegroundColor Green
 
 # 5. Assemble SFX Setup.exe
-Write-Host "`n[5/5] Assembling standalone Mowan-Harness-Setup.exe..." -ForegroundColor Yellow
-$setupExe = "$distDir\Mowan-Harness-Setup.exe"
+Write-Host "`n[5/5] Assembling standalone Mowan-Agent-Setup.exe..." -ForegroundColor Yellow
+$setupExe = "$distDir\Mowan-Agent-Setup.exe"
 if (Test-Path $setupExe) { Remove-Item -Force $setupExe }
 
 cmd /c "copy /b `"$root\installer\installer-base.exe`" + `"$payloadZip`" `"$setupExe`"" | Out-Null
 Remove-Item -Force $payloadZip
 
+$desktop = [Environment]::GetFolderPath("Desktop")
+Copy-Item $setupExe "$desktop\Mowan-Agent-Setup.exe" -Force
+New-Item -ItemType Directory -Force -Path "$root\apps\web\dist" | Out-Null
+Copy-Item $setupExe "$root\apps\web\dist\Mowan-Agent-Setup.exe" -Force
+
 $setupSizeMB = [math]::Round((Get-Item $setupExe).Length / 1MB, 2)
 Write-Host "`n======================================================" -ForegroundColor Green
 Write-Host "🎉 Standalone Setup Installer Created Successfully!" -ForegroundColor Green
-Write-Host "Output: $setupExe" -ForegroundColor Green
-Write-Host "Size:   $setupSizeMB MB" -ForegroundColor Green
+Write-Host "Output:  $setupExe" -ForegroundColor Green
+Write-Host "Desktop: $desktop\Mowan-Agent-Setup.exe" -ForegroundColor Green
+Write-Host "Size:    $setupSizeMB MB" -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Green
 
 Pop-Location

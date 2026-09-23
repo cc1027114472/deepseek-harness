@@ -69,6 +69,7 @@
     # Browser Session export: `/export` command plus the shared download dialog.
     - id: session-log-download
       name: '@deepseek-ai/dsh-session-log-export'
+      disabled: true
 
     - id: workspace
       name: '@deepseek-ai/dsh-workspace'
@@ -306,6 +307,7 @@
 
     - id: ui-trajectory
       name: '@deepseek-ai/dsh-client-ui-trajectory'
+      disabled: true
 
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #

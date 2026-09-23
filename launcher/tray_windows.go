@@ -145,8 +145,8 @@ func wmtrayCallback(uMsg uint32) uint32 {
 
 // InitTray initializes the Windows system tray icon and message loop.
 func InitTray(serviceURL string, onOpen, onCopyURL, onRestart, onExit func()) (*TrayManager, error) {
-	className, _ := syscall.UTF16PtrFromString("MowanHarnessTrayClass")
-	wndName, _ := syscall.UTF16PtrFromString("MowanHarnessTray")
+	className, _ := syscall.UTF16PtrFromString("MowanAgentTrayClass")
+	wndName, _ := syscall.UTF16PtrFromString("MowanAgentTray")
 
 	hIcon, _, _ := loadIcon.Call(0, uintptr(idiApplication))
 
@@ -183,7 +183,7 @@ func InitTray(serviceURL string, onOpen, onCopyURL, onRestart, onExit func()) (*
 		hIcon:            hIcon,
 	}
 
-	tipStr := "Mowan Harness (Running: " + serviceURL + ")"
+	tipStr := "魔丸 (运行中: " + serviceURL + ")"
 	if len(tipStr) > 120 {
 		tipStr = tipStr[:120]
 	}
@@ -213,7 +213,7 @@ func (t *TrayManager) showMenu() {
 	}
 	defer destroyMenu.Call(hMenu)
 
-	titleStr, _ := syscall.UTF16PtrFromString("Mowan Harness (" + t.serviceURL + ")")
+	titleStr, _ := syscall.UTF16PtrFromString("魔丸 (" + t.serviceURL + ")")
 	appendMenu.Call(hMenu, mfString|mfDisabled, 0, uintptr(unsafe.Pointer(titleStr)))
 	appendMenu.Call(hMenu, mfSeparator, 0, 0)
 

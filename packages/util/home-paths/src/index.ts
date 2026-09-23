@@ -8,14 +8,17 @@ import { opendir, realpath } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 
-/** Directory name for the default DeepSeek Harness home under the OS home. */
-export const DSH_HOME_DIR_NAME = '.dsh'
+/** Directory name for the default Mowan (魔丸) Harness home under the OS home. */
+export const DSH_HOME_DIR_NAME = '.mowan'
 
 /** Stable user-facing display form for the default DeepSeek Harness home. */
 export const DEFAULT_DSH_HOME_DISPLAY = `~/${DSH_HOME_DIR_NAME}`
 
-/** Environment variable that overrides the default DeepSeek Harness home. */
+/** Environment variable that overrides the default DeepSeek Harness home (kept for compatibility). */
 export const DSH_HOME_ENV = 'DSH_HOME'
+
+/** Preferred environment variable that overrides the Mowan (魔丸) home. */
+export const MOWAN_HOME_ENV = 'MOWAN_HOME'
 
 /**
  * Give a native filesystem watcher one canonical spelling of a path, even
@@ -85,8 +88,8 @@ export function expandHomePath(path: string): string {
  * @returns the normalized absolute harness home path.
  */
 export function resolveDshHome(configured?: string, env: Record<string, string | undefined> = process.env): string {
-  const fromEnv = env[DSH_HOME_ENV]
-  const selected = configured ?? (fromEnv !== undefined && fromEnv.trim().length > 0 ? fromEnv : defaultDshHome())
+  const fromMowan = env[MOWAN_HOME_ENV]
+  const selected = configured ?? (fromMowan !== undefined && fromMowan.trim().length > 0 ? fromMowan : defaultDshHome())
   return resolve(expandHomePath(selected))
 }
 
@@ -103,10 +106,10 @@ export function dshHomePath(...segments: string[]): string {
  * Describe a resolved harness home symbolically for user-facing display.
  *
  * It never returns an absolute machine path: the default home is labelled
- * `~/.dsh`, and any configured home is labelled `$DSH_HOME`.
+ * `~/.mowan`, and any configured home is labelled `$MOWAN_HOME`.
  * @param resolvedHome - the absolute path returned by {@link resolveDshHome}.
- * @returns `~/.dsh` for the default home, otherwise `$DSH_HOME`.
+ * @returns `~/.mowan` for the default home, otherwise `$MOWAN_HOME`.
  */
 export function dshHomeDisplay(resolvedHome: string): string {
-  return resolvedHome === resolve(defaultDshHome()) ? DEFAULT_DSH_HOME_DISPLAY : `$${DSH_HOME_ENV}`
+  return resolvedHome === resolve(defaultDshHome()) ? DEFAULT_DSH_HOME_DISPLAY : `$${MOWAN_HOME_ENV}`
 }

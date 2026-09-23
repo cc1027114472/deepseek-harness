@@ -242,7 +242,9 @@ export function CustomProviderCard(props: CustomProviderCardProps): ReactNode {
           disabled={profileDisabled}
           onChange={(event) => { setProtocol(event.target.value) }}
         >
-          {protocols.map(choice => <option key={choice} value={choice}>{choice}</option>)}
+          {protocols
+            .filter(choice => choice !== 'google-generative-ai' && choice !== 'google-vertex')
+            .map(choice => <option key={choice} value={choice}>{choice}</option>)}
         </select>
       </div>
       <div className={styles['field']}>

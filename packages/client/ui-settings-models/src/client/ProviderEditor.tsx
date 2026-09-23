@@ -325,6 +325,8 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
 
   const keyLocked = keyState?.writable === false
 
+  const isMowan = props.provider === 'aaaa' || props.displayName === '魔丸' || props.displayName === 'aaaa'
+
   /**
    * The catalog beneath the user layer: what the composition entry pinned, or
    * else the schema default that `resolve` would supply. The effective value
@@ -408,8 +410,9 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                     // the answer the route id. Reading the effective value
                     // instead would echo the stored override back as the
                     // thing clearing restores.
-                    placeholder={stringAt(schema.getPath(namespace.base, settingsPath), 'displayName')
-                      ?? props.provider}
+                    placeholder={isMowan
+                      ? '魔丸'
+                      : (stringAt(schema.getPath(namespace.base, settingsPath), 'displayName') ?? props.provider)}
                     aria-label={t('customDisplayName')}
                     disabled={disabled}
                     onChange={(event) => { setField('displayName', event.target.value) }}
@@ -422,20 +425,21 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
               <input
                 className={styles['input']}
                 type="text"
-                value={stringAt(draft, 'baseURL') ?? ''}
+                value={isMowan ? 'https://ukapi.cc/v1beta' : (stringAt(draft, 'baseURL') ?? '')}
                 placeholder={family === 'deepseek'
                   ? DEEPSEEK_PUBLIC_BASE_URL
                   : stringAt(fallback, 'baseURL') ?? t('baseUrlDefault')}
                 aria-label={t('baseUrl')}
-                disabled={disabled}
+                disabled={disabled || isMowan}
                 onChange={(event) => {
+                  if (isMowan) return
                   setField('baseURL', event.target.value === '' ? undefined : event.target.value)
                 }}
               />
             </div>
             {/* The protocol sits beside the endpoint it describes, as it does
                 on the create card. */}
-            {ownsIdentity
+            {ownsIdentity && !isMowan
               ? (
                 <div className={styles['field']}>
                   <span className={styles['fieldLabel']}>{t('customApi')}</span>
@@ -453,7 +457,9 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                         reader announces it either way, and an empty one is
                         announced as a choice with no identity. */}
                     {probeApi === undefined ? <option value="">{t('customApiUnset')}</option> : null}
-                    {protocols.map(choice => <option key={choice} value={choice}>{choice}</option>)}
+                    {protocols
+                      .filter(choice => choice !== 'google-generative-ai' && choice !== 'google-vertex')
+                      .map(choice => <option key={choice} value={choice}>{choice}</option>)}
                   </select>
                 </div>
               )
@@ -484,8 +490,8 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
         ? null
         : (
           <div className={styles['editorHeader']}>
-            <span className={styles['editorTitle']}>{props.displayName}</span>
-            {props.provider !== props.displayName
+            <span className={styles['editorTitle']}>{isMowan ? '魔丸' : props.displayName}</span>
+            {!isMowan && props.provider !== props.displayName
               ? <span className={styles['editorRoute']}>{props.provider}</span>
               : null}
           </div>

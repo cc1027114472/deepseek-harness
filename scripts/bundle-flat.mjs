@@ -9,32 +9,30 @@ if (fs.existsSync(outDir)) {
 }
 fs.mkdirSync(outDir, { recursive: true });
 
-console.log('[1/4] Copying root configs & binaries...');
+console.log('[1/5] Copying root configs & binaries...');
 fs.copyFileSync('package.json', path.join(outDir, 'package.json'));
 fs.copyFileSync('pnpm-workspace.yaml', path.join(outDir, 'pnpm-workspace.yaml'));
-if (fs.existsSync('Mowan-Harness.exe')) {
-  fs.copyFileSync('Mowan-Harness.exe', path.join(outDir, 'Mowan-Harness.exe'));
+if (fs.existsSync('Mowan-Agent.exe')) {
+  fs.copyFileSync('Mowan-Agent.exe', path.join(outDir, 'Mowan-Agent.exe'));
 }
 
-// 1. Copy runtime node.exe
 const runtimeOut = path.join(outDir, 'runtime');
 fs.mkdirSync(runtimeOut, { recursive: true });
 if (fs.existsSync('runtime/node.exe')) {
   fs.copyFileSync('runtime/node.exe', path.join(runtimeOut, 'node.exe'));
 }
 
-// Helper: copy directory recursively ignoring non-runtime stuff
-function copyCleanDir(src, dest) {
+function copyCleanSourceDir(src, dest) {
   if (!fs.existsSync(src)) return;
   fs.mkdirSync(dest, { recursive: true });
   const entries = fs.readdirSync(src, { withFileTypes: true });
   for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue;
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
     if (entry.isDirectory()) {
-      if (['.git', '.gocache', 'tests', 'src', 'coverage', '.turbo', '__tests__'].includes(entry.name)) continue;
-      if (entry.name === 'node_modules') continue;
-      copyCleanDir(srcPath, destPath);
+      if (['.git', '.gocache', 'tests', 'src', 'coverage', '.turbo', '__tests__', 'node_modules'].includes(entry.name)) continue;
+      copyCleanSourceDir(srcPath, destPath);
     } else if (entry.isFile()) {
       if (entry.name.endsWith('.ts') || entry.name.endsWith('.map') || entry.name.endsWith('.log')) continue;
       if (entry.name.endsWith('.d.ts') || entry.name.endsWith('.md')) continue;
@@ -43,12 +41,31 @@ function copyCleanDir(src, dest) {
   }
 }
 
-console.log('[2/4] Copying apps, packages and vendor (built output only)...');
-copyCleanDir('apps', path.join(outDir, 'apps'));
-copyCleanDir('packages', path.join(outDir, 'packages'));
-copyCleanDir('vendor', path.join(outDir, 'vendor'));
+function copyCleanDepDir(src, dest) {
+  if (!fs.existsSync(src)) return;
+  fs.mkdirSync(dest, { recursive: true });
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue;
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      if (['.git', '.gocache', 'coverage', '.turbo', '__tests__', 'node_modules'].includes(entry.name)) continue;
+      copyCleanDepDir(srcPath, destPath);
+    } else if (entry.isFile()) {
+      if (entry.name.endsWith('.map') || entry.name.endsWith('.log')) continue;
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
 
-console.log('[3/4] Creating hoisted flat node_modules (zero symlinks)...');
+console.log('[2/5] Copying apps, packages, vendor, and native...');
+copyCleanSourceDir('apps', path.join(outDir, 'apps'));
+copyCleanSourceDir('packages', path.join(outDir, 'packages'));
+copyCleanSourceDir('vendor', path.join(outDir, 'vendor'));
+copyCleanSourceDir('native', path.join(outDir, 'native'));
+
+console.log('[3/5] Creating hoisted flat node_modules (zero symlinks)...');
 const flatNm = path.join(outDir, 'node_modules');
 fs.mkdirSync(flatNm, { recursive: true });
 
@@ -81,35 +98,45 @@ const IGNORED_PNPM_PACKAGES = new Set([
   'istanbul-lib-report',
 ]);
 
-// Copy all packages from .pnpm directly into flat node_modules
 const pnpmDir = path.join(rootDir, 'node_modules', '.pnpm');
 if (fs.existsSync(pnpmDir)) {
   const pnpmEntries = fs.readdirSync(pnpmDir, { withFileTypes: true });
   for (const pe of pnpmEntries) {
-    if (pe.isDirectory()) {
-      const subNm = path.join(pnpmDir, pe.name, 'node_modules');
-      if (fs.existsSync(subNm)) {
-        const pkgs = fs.readdirSync(subNm, { withFileTypes: true });
-        for (const p of pkgs) {
-          if (IGNORED_PNPM_PACKAGES.has(p.name)) continue;
+    if (!pe.isDirectory() || pe.isSymbolicLink()) continue;
+    const subNm = path.join(pnpmDir, pe.name, 'node_modules');
+    if (fs.existsSync(subNm)) {
+      let pkgs;
+      try {
+        pkgs = fs.readdirSync(subNm, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const p of pkgs) {
+        if (p.isSymbolicLink()) continue;
+        if (IGNORED_PNPM_PACKAGES.has(p.name)) continue;
 
-          if (p.name.startsWith('@')) {
-            const scopeDir = path.join(subNm, p.name);
-            const scopedPkgs = fs.readdirSync(scopeDir, { withFileTypes: true });
-            for (const sp of scopedPkgs) {
-              const fullName = `${p.name}/${sp.name}`;
-              if (IGNORED_PNPM_PACKAGES.has(fullName) || IGNORED_PNPM_PACKAGES.has(p.name)) continue;
-              const targetScopeDir = path.join(flatNm, p.name);
-              const targetPkgDir = path.join(targetScopeDir, sp.name);
-              if (!fs.existsSync(targetPkgDir)) {
-                copyCleanDir(path.join(scopeDir, sp.name), targetPkgDir);
-              }
-            }
-          } else {
-            const targetPkgDir = path.join(flatNm, p.name);
+        if (p.name.startsWith('@')) {
+          const scopeDir = path.join(subNm, p.name);
+          let scopedPkgs;
+          try {
+            scopedPkgs = fs.readdirSync(scopeDir, { withFileTypes: true });
+          } catch {
+            continue;
+          }
+          for (const sp of scopedPkgs) {
+            if (sp.isSymbolicLink()) continue;
+            const fullName = `${p.name}/${sp.name}`;
+            if (IGNORED_PNPM_PACKAGES.has(fullName) || IGNORED_PNPM_PACKAGES.has(p.name)) continue;
+            const targetScopeDir = path.join(flatNm, p.name);
+            const targetPkgDir = path.join(targetScopeDir, sp.name);
             if (!fs.existsSync(targetPkgDir)) {
-              copyCleanDir(path.join(subNm, p.name), targetPkgDir);
+              copyCleanDepDir(path.join(scopeDir, sp.name), targetPkgDir);
             }
+          }
+        } else {
+          const targetPkgDir = path.join(flatNm, p.name);
+          if (!fs.existsSync(targetPkgDir)) {
+            copyCleanDepDir(path.join(subNm, p.name), targetPkgDir);
           }
         }
       }
@@ -117,8 +144,7 @@ if (fs.existsSync(pnpmDir)) {
   }
 }
 
-// Also link/copy workspace @deepseek-ai/* packages into flat node_modules/@deepseek-ai
-console.log('[4/4] Hoisting workspace packages into node_modules/@deepseek-ai...');
+console.log('[4/5] Hoisting workspace packages into node_modules/@deepseek-ai...');
 const deepseekScopeDir = path.join(flatNm, '@deepseek-ai');
 fs.mkdirSync(deepseekScopeDir, { recursive: true });
 
@@ -131,16 +157,18 @@ function hoistWorkspacePkg(pkgDir) {
       const shortName = pkg.name.replace('@deepseek-ai/', '');
       const targetDir = path.join(deepseekScopeDir, shortName);
       if (!fs.existsSync(targetDir)) {
-        copyCleanDir(pkgDir, targetDir);
+        copyCleanSourceDir(pkgDir, targetDir);
       }
     }
   } catch {}
 }
 
 function scanAndHoist(dir) {
+  if (!fs.existsSync(dir)) return;
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.isDirectory()) {
+      if (entry.isSymbolicLink()) continue;
       if (['tests', 'coverage', 'node_modules', 'src'].includes(entry.name)) continue;
       const full = path.join(dir, entry.name);
       hoistWorkspacePkg(full);
@@ -149,8 +177,27 @@ function scanAndHoist(dir) {
   }
 }
 
+console.log('[5/5] Scanning workspace packages in packages, vendor, apps, and native...');
 scanAndHoist(path.join(outDir, 'packages'));
 scanAndHoist(path.join(outDir, 'vendor'));
 scanAndHoist(path.join(outDir, 'apps'));
+scanAndHoist(path.join(outDir, 'native'));
+
+// Copy mowan.ico
+const icoPath = path.join(rootDir, 'mowan.ico');
+if (fs.existsSync(icoPath)) {
+  fs.copyFileSync(icoPath, path.join(outDir, 'mowan.ico'));
+  console.log('✓ Copied mowan.ico to flat bundle');
+}
+
+// Clean any nested Setup.exe copies inside flat bundle
+const webDist = path.join(outDir, 'apps', 'web', 'dist');
+if (fs.existsSync(webDist)) {
+  for (const f of fs.readdirSync(webDist)) {
+    if (f.endsWith('Setup.exe')) {
+      fs.rmSync(path.join(webDist, f), { force: true });
+    }
+  }
+}
 
 console.log('🎉 Clean flat bundle created successfully at:', outDir);

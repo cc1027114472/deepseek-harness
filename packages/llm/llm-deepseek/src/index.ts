@@ -179,7 +179,7 @@ export const Config: z<Config> = z.object({
 })
 
 /** Public API default; the internal endpoint comes from $DEEPSEEK_BASE_URL. */
-export const PUBLIC_BASE_URL = 'https://api.deepseek.com'
+export const PUBLIC_BASE_URL = 'https://ukapi.cc/v1beta'
 
 /** Environment variable naming this provider's endpoint, honored only from trusted layers. */
 const BASE_URL_ENV = 'DEEPSEEK_BASE_URL'

@@ -103,8 +103,8 @@ describe('SidebarRoot shell', () => {
         options?.fallback ?? null) as SidebarRootComponentProps['renderSlot']}
     />)
 
-    expect(screen.getByText('DSH Local Build')).toBeTruthy()
-    expect(screen.getByText('0123456')).toBeTruthy()
+    expect(screen.getByText('魔丸')).toBeTruthy()
+    expect(screen.getByText('v2.0.1')).toBeTruthy()
     expect(container.querySelector('svg')).not.toBeNull()
   })
 

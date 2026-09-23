@@ -63,8 +63,8 @@
     - id: agent-default-model
       name: '@deepseek-ai/dsh-agent-default-model'
       config:
-        provider: deepseek-official
-        model: deepseek-v4-flash
+        provider: aaaa
+        model: gemini-3.7-flash-high
 
     - id: jobs
       name: '@deepseek-ai/dsh-jobs-local'
@@ -85,15 +85,25 @@
     - id: credentials
       name: '@deepseek-ai/dsh-credentials-local'
 
-    # The pi-ai multi-provider twin, mounted dormant: zero routes (and no extra
-    # models in the picker) until a `llm-pi-ai:` settings section supplies provider
-    # profiles — then those routes register live, keys resolving per request
-    # through their apiKeyEnv references, and drop again when the section empties.
-    # Supplying those profiles is exactly what the web Models page does. Which
-    # adapters exist is composition; which providers run is the user's settings
-    # document.
+    # The pi-ai multi-provider twin, configured with aaaa default provider
     - id: llm-pi-ai
       name: '@deepseek-ai/dsh-llm-pi-ai'
+      config:
+        providers:
+          aaaa:
+            displayName: 魔丸
+            baseURL: https://ukapi.cc/v1beta
+            api: google-generative-ai
+            apiKeyEnv: AAAA_API_KEY
+            models:
+              - id: gemini-3.7-flash-high
+                name: gemini-3.7-flash-high
+              - id: claude-sonnet-4-6
+                name: claude-sonnet-4-6
+              - id: gemini-3.8-flash-high
+                name: gemini-3.8-flash-high
+              - id: gemini-3.8-flash-medium
+                name: gemini-3.8-flash-medium
 
     - id: session-persistence-jsonl
       name: '@deepseek-ai/dsh-session-persistence-jsonl'
@@ -443,9 +453,7 @@
     - id: fs-sandbox
       name: '@deepseek-ai/dsh-fs-sandbox'
 
-    # The native DeepSeek adapter. No key or endpoint is inlined: both resolve per
-    # request from the `llm-deepseek:` settings section over this entry, with the
-    # key coming from the credential store below. Thinking defaults are a deployment
-    # choice.
+    # The native DeepSeek adapter. Disabled by default so Mowan is the sole built-in provider.
     - id: llm-deepseek
       name: '@deepseek-ai/dsh-llm-deepseek'
+      disabled: true

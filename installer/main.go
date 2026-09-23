@@ -8,36 +8,38 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
 )
 
 var (
-	user32Mod               = syscall.NewLazyDLL("user32.dll")
-	comctl32Mod             = syscall.NewLazyDLL("comctl32.dll")
-	gdi32Mod                = syscall.NewLazyDLL("gdi32.dll")
-	shell32Mod              = syscall.NewLazyDLL("shell32.dll")
-	modOle32                = syscall.NewLazyDLL("ole32.dll")
-	messageBox              = user32Mod.NewProc("MessageBoxW")
-	registerClassEx         = user32Mod.NewProc("RegisterClassExW")
-	createWindowEx          = user32Mod.NewProc("CreateWindowExW")
-	showWindow              = user32Mod.NewProc("ShowWindow")
-	updateWindow            = user32Mod.NewProc("UpdateWindow")
-	setWindowText           = user32Mod.NewProc("SetWindowTextW")
-	sendMessage             = user32Mod.NewProc("SendMessageW")
-	peekMessage             = user32Mod.NewProc("PeekMessageW")
-	translateMessage        = user32Mod.NewProc("TranslateMessage")
-	dispatchMessage         = user32Mod.NewProc("DispatchMessageW")
-	defWindowProc           = user32Mod.NewProc("DefWindowProcW")
-	destroyWindow           = user32Mod.NewProc("DestroyWindow")
-	getSystemMetrics        = user32Mod.NewProc("GetSystemMetrics")
-	initCommonControlsEx    = comctl32Mod.NewProc("InitCommonControlsEx")
-	getStockObject          = gdi32Mod.NewProc("GetStockObject")
-	procCoInitialize        = modOle32.NewProc("CoInitialize")
-	procCoUninitialize      = modOle32.NewProc("CoUninitialize")
-	procCoCreateInstance    = modOle32.NewProc("CoCreateInstance")
-	procSHGetFolderPathW    = shell32Mod.NewProc("SHGetFolderPathW")
+	user32Mod            = syscall.NewLazyDLL("user32.dll")
+	comctl32Mod          = syscall.NewLazyDLL("comctl32.dll")
+	gdi32Mod             = syscall.NewLazyDLL("gdi32.dll")
+	shell32Mod           = syscall.NewLazyDLL("shell32.dll")
+	modOle32             = syscall.NewLazyDLL("ole32.dll")
+	messageBox           = user32Mod.NewProc("MessageBoxW")
+	registerClassEx      = user32Mod.NewProc("RegisterClassExW")
+	createWindowEx       = user32Mod.NewProc("CreateWindowExW")
+	showWindow           = user32Mod.NewProc("ShowWindow")
+	updateWindow         = user32Mod.NewProc("UpdateWindow")
+	setWindowText        = user32Mod.NewProc("SetWindowTextW")
+	sendMessage          = user32Mod.NewProc("SendMessageW")
+	peekMessage          = user32Mod.NewProc("PeekMessageW")
+	translateMessage     = user32Mod.NewProc("TranslateMessage")
+	dispatchMessage      = user32Mod.NewProc("DispatchMessageW")
+	defWindowProc        = user32Mod.NewProc("DefWindowProcW")
+	destroyWindow        = user32Mod.NewProc("DestroyWindow")
+	getSystemMetrics     = user32Mod.NewProc("GetSystemMetrics")
+	initCommonControlsEx = comctl32Mod.NewProc("InitCommonControlsEx")
+	getStockObject       = gdi32Mod.NewProc("GetStockObject")
+	procCoInitialize     = modOle32.NewProc("CoInitialize")
+	procCoUninitialize   = modOle32.NewProc("CoUninitialize")
+	procCoCreateInstance = modOle32.NewProc("CoCreateInstance")
+	procSHGetFolderPathW = shell32Mod.NewProc("SHGetFolderPathW")
 )
 
 const (
@@ -95,7 +97,18 @@ func getInstallDir() string {
 		userProfile := os.Getenv("USERPROFILE")
 		localAppData = filepath.Join(userProfile, "AppData", "Local")
 	}
-	return filepath.Join(localAppData, "Programs", "Mowan-Harness")
+	return filepath.Join(localAppData, "Programs", "Mowan-Agent")
+}
+
+func killOldInstances() {
+	killCmd := func(name string) {
+		cmd := exec.Command("taskkill", "/F", "/IM", name, "/T")
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+		_ = cmd.Run()
+	}
+	killCmd("Mowan-Agent.exe")
+	killCmd("Mowan-Harness.exe")
+	time.Sleep(300 * time.Millisecond)
 }
 
 type COMGUID struct {
@@ -106,9 +119,9 @@ type COMGUID struct {
 }
 
 var (
-	clsidShellLink  = COMGUID{0x00021401, 0, 0, [8]byte{0xC0, 0, 0, 0, 0, 0, 0, 0x46}}
-	iidShellLinkW   = COMGUID{0x000214F9, 0, 0, [8]byte{0xC0, 0, 0, 0, 0, 0, 0, 0x46}}
-	iidPersistFile  = COMGUID{0x0000010b, 0, 0, [8]byte{0xC0, 0, 0, 0, 0, 0, 0, 0x46}}
+	clsidShellLink = COMGUID{0x00021401, 0, 0, [8]byte{0xC0, 0, 0, 0, 0, 0, 0, 0x46}}
+	iidShellLinkW  = COMGUID{0x000214F9, 0, 0, [8]byte{0xC0, 0, 0, 0, 0, 0, 0, 0x46}}
+	iidPersistFile = COMGUID{0x0000010b, 0, 0, [8]byte{0xC0, 0, 0, 0, 0, 0, 0, 0x46}}
 )
 
 func createNativeShortcut(dstLnk, targetPath, workDir, iconPath, description string) error {
@@ -192,22 +205,27 @@ func getWinFolderPath(csidl int) (string, error) {
 }
 
 func createAllShortcuts(installDir string) error {
-	appExe := filepath.Join(installDir, "Mowan-Harness.exe")
+	appExe := filepath.Join(installDir, "Mowan-Agent.exe")
+	icoPath := filepath.Join(installDir, "mowan.ico")
+	iconTarget := appExe
+	if _, err := os.Stat(icoPath); err == nil {
+		iconTarget = icoPath
+	}
 
 	// 1. Desktop shortcut
 	desktop, err := getWinFolderPath(0x0010) // CSIDL_DESKTOPDIRECTORY
 	if err == nil && desktop != "" {
-		deskLnk := filepath.Join(desktop, "Mowan Harness.lnk")
-		_ = createNativeShortcut(deskLnk, appExe, installDir, appExe, "Mowan Harness Web AI Assistant")
+		deskLnk := filepath.Join(desktop, "魔丸.lnk")
+		_ = createNativeShortcut(deskLnk, appExe, installDir, iconTarget, "魔丸 AI 智能助手 (Mowan Agent)")
 	}
 
 	// 2. Start Menu Programs shortcut
 	programs, err := getWinFolderPath(0x0002) // CSIDL_PROGRAMS
 	if err == nil && programs != "" {
-		progDir := filepath.Join(programs, "Mowan Harness")
+		progDir := filepath.Join(programs, "魔丸")
 		_ = os.MkdirAll(progDir, 0755)
-		progLnk := filepath.Join(progDir, "Mowan Harness.lnk")
-		_ = createNativeShortcut(progLnk, appExe, installDir, appExe, "Mowan Harness Web AI Assistant")
+		progLnk := filepath.Join(progDir, "魔丸.lnk")
+		_ = createNativeShortcut(progLnk, appExe, installDir, iconTarget, "魔丸 AI 智能助手 (Mowan Agent)")
 	}
 
 	return nil
@@ -226,15 +244,14 @@ type InstallUI struct {
 }
 
 func createInstallUI() (*InstallUI, error) {
-	// Initialize common controls
 	ic := initControlsPayload{
 		dwSize: uint32(unsafe.Sizeof(initControlsPayload{})),
 		dwICC:  0x00000020, // ICC_PROGRESS_CLASS
 	}
 	initCommonControlsEx.Call(uintptr(unsafe.Pointer(&ic)))
 
-	className, _ := syscall.UTF16PtrFromString("MowanHarnessInstallerClass")
-	wndTitle, _ := syscall.UTF16PtrFromString("Mowan Harness 安装向导")
+	className, _ := syscall.UTF16PtrFromString("MowanAgentInstallerClass")
+	wndTitle, _ := syscall.UTF16PtrFromString("魔丸 安装向导")
 
 	wcls := wndClassEx{
 		cbSize:        uint32(unsafe.Sizeof(wndClassEx{})),
@@ -252,7 +269,6 @@ func createInstallUI() (*InstallUI, error) {
 	x := (int32(sw) - width) / 2
 	y := (int32(sh) - height) / 2
 
-	// Main window (fixed size, dialog style)
 	style := uint32(0x00CA0000) // WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX
 	hwndMain, _, _ := createWindowEx.Call(
 		0,
@@ -266,8 +282,7 @@ func createInstallUI() (*InstallUI, error) {
 	staticClass, _ := syscall.UTF16PtrFromString("STATIC")
 	progClass, _ := syscall.UTF16PtrFromString("msctls_progress32")
 
-	// 1. Title static text
-	titleText, _ := syscall.UTF16PtrFromString("正在安装 Mowan Harness，请稍候...")
+	titleText, _ := syscall.UTF16PtrFromString("正在安装 魔丸，请稍候...")
 	hwndTitle, _, _ := createWindowEx.Call(
 		0,
 		uintptr(unsafe.Pointer(staticClass)),
@@ -277,7 +292,6 @@ func createInstallUI() (*InstallUI, error) {
 		hwndMain, 0, 0, 0,
 	)
 
-	// 2. Progress bar
 	hwndProg, _, _ := createWindowEx.Call(
 		0,
 		uintptr(unsafe.Pointer(progClass)),
@@ -288,8 +302,7 @@ func createInstallUI() (*InstallUI, error) {
 	)
 	sendMessage.Call(hwndProg, pbmSetRange32, 0, 100)
 
-	// 3. Status detail label
-	descText, _ := syscall.UTF16PtrFromString("准备解压组件...")
+	descText, _ := syscall.UTF16PtrFromString("准备解压核心组件...")
 	hwndDesc, _, _ := createWindowEx.Call(
 		0,
 		uintptr(unsafe.Pointer(staticClass)),
@@ -299,7 +312,6 @@ func createInstallUI() (*InstallUI, error) {
 		hwndMain, 0, 0, 0,
 	)
 
-	// 4. Bottom footer note
 	footerText, _ := syscall.UTF16PtrFromString("安装完成后将自动在桌面生成快捷方式，并在浏览器中打开控制台。")
 	hwndFooter, _, _ := createWindowEx.Call(
 		0,
@@ -310,7 +322,6 @@ func createInstallUI() (*InstallUI, error) {
 		hwndMain, 0, 0, 0,
 	)
 
-	// Apply default clean UI font
 	hFont, _, _ := getStockObject.Call(defaultGuiFont)
 	if hFont != 0 {
 		sendMessage.Call(hwndTitle, wmSetFont, hFont, 1)
@@ -345,13 +356,11 @@ func (ui *InstallUI) SetProgress(pct int, desc string) {
 	sendMessage.Call(ui.hwndProg, pbmSetPos, uintptr(pct), 0)
 	textPtr, _ := syscall.UTF16PtrFromString(desc)
 	setWindowText.Call(ui.hwndDesc, uintptr(unsafe.Pointer(textPtr)))
-	ui.ProcessMessages()
 }
 
 func (ui *InstallUI) SetTitle(title string) {
 	textPtr, _ := syscall.UTF16PtrFromString(title)
 	setWindowText.Call(ui.hwndTitle, uintptr(unsafe.Pointer(textPtr)))
-	ui.ProcessMessages()
 }
 
 func (ui *InstallUI) Close() {
@@ -413,7 +422,6 @@ func main() {
 			i++
 		}
 	}
-	logMsg("isSilent: %v, noLaunch: %v, customDir: %s", isSilent, noLaunch, customDir)
 
 	installDir := getInstallDir()
 	if customDir != "" {
@@ -423,115 +431,155 @@ func main() {
 
 	if !isSilent {
 		confirm := showMessage(
-			"Mowan Harness 安装向导",
-			"欢迎使用 Mowan Harness 安装向导！\n\n程序将被安装到:\n"+installDir+"\n\n点击 [确定] 开始安装，点击 [取消] 退出。",
+			"魔丸 安装向导",
+			"欢迎使用 魔丸 (Mowan Agent) 安装向导！\n\n程序将被安装到:\n"+installDir+"\n\n点击 [确定] 开始安装，点击 [取消] 退出。",
 			0x01|0x40, // MB_OKCANCEL | MB_ICONINFORMATION
 		)
-		logMsg("Confirm dialog result: %d", confirm)
 		if confirm != 1 {
 			return
 		}
 	}
 
-	// 1. Try to open ZIP reader from the executable itself (appended SFX payload)
+	killOldInstances()
+
 	zipReader, err := zip.OpenReader(exePath)
 	if err != nil {
 		siblingZip := filepath.Join(filepath.Dir(exePath), "payload.zip")
 		zipReader, err = zip.OpenReader(siblingZip)
 		if err != nil {
+			logMsg("Failed to open zip reader: %v", err)
 			showMessage("安装错误", "未能找到安装数据包 (payload.zip)。\n请确保安装程序完整无损。", 0x10)
 			return
 		}
 	}
 	defer zipReader.Close()
 
-	logMsg("Opened zipReader with %d files", len(zipReader.File))
-
 	if err := os.MkdirAll(installDir, 0755); err != nil {
-		logMsg("Failed to mkdir %s: %v", installDir, err)
+		logMsg("Failed to create install dir: %v", err)
 		if !isSilent {
 			showMessage("安装错误", "无法创建安装目录: "+err.Error(), 0x10)
 		}
 		return
 	}
-	logMsg("Created installDir successfully")
 
-	// 2. Launch visual progress window (skip UI in headless silent mode)
 	var ui *InstallUI
 	if !isSilent {
-		var uiErr error
-		ui, uiErr = createInstallUI()
-		if uiErr != nil {
-			logMsg("Failed to create UI: %v", uiErr)
-			showMessage("安装错误", "创建安装界面失败: "+uiErr.Error(), 0x10)
-			return
-		}
-		defer ui.Close()
+		ui, _ = createInstallUI()
 	}
 
-	totalFiles := len(zipReader.File)
+	// 4. Pre-create all directories first (eliminates NTFS directory lock contention)
 	if ui != nil {
-		ui.SetProgress(0, fmt.Sprintf("正在准备释放文件 (共 %d 项)...", totalFiles))
+		ui.SetProgress(5, "正在初始化安装目录结构...")
+		ui.ProcessMessages()
 	}
-
-	// 3. Extract files with real-time UI updates
-	for i, file := range zipReader.File {
+	dirs := make(map[string]struct{})
+	for _, file := range zipReader.File {
 		path := filepath.Join(installDir, file.Name)
-		extPath := toExtendedPath(path)
-
 		if file.FileInfo().IsDir() {
-			_ = os.MkdirAll(extPath, 0755)
-			continue
+			dirs[path] = struct{}{}
+		} else {
+			dirs[filepath.Dir(path)] = struct{}{}
 		}
+	}
+	for dir := range dirs {
+		_ = os.MkdirAll(toExtendedPath(dir), 0755)
+	}
 
-		_ = os.MkdirAll(toExtendedPath(filepath.Dir(path)), 0755)
+	// 5. Multi-worker concurrent file extraction
+	totalFiles := int64(len(zipReader.File))
+	var processedCount int64
+	numWorkers := 8
+	jobs := make(chan *zip.File, 2048)
+	var wg sync.WaitGroup
 
-		outFile, err := os.OpenFile(extPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
-		if err != nil {
-			outFile, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
-		}
-		if err == nil {
-			rc, err := file.Open()
-			if err == nil {
-				_, _ = io.Copy(outFile, rc)
-				rc.Close()
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			buf := make([]byte, 64*1024)
+			for file := range jobs {
+				if !file.FileInfo().IsDir() {
+					path := filepath.Join(installDir, file.Name)
+					extPath := toExtendedPath(path)
+
+					outFile, err := os.OpenFile(extPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
+					if err != nil {
+						outFile, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
+					}
+					if err == nil {
+						rc, err := file.Open()
+						if err == nil {
+							_, _ = io.CopyBuffer(outFile, rc, buf)
+							rc.Close()
+						}
+						outFile.Close()
+					}
+				}
+				atomic.AddInt64(&processedCount, 1)
 			}
-			outFile.Close()
+		}()
+	}
+
+	doneChan := make(chan struct{})
+	go func() {
+		for _, f := range zipReader.File {
+			jobs <- f
+		}
+		close(jobs)
+		wg.Wait()
+		close(doneChan)
+	}()
+
+	ticker := time.NewTicker(30 * time.Millisecond)
+	defer ticker.Stop()
+
+	completed := false
+	for !completed {
+		if ui != nil {
+			ui.ProcessMessages()
 		}
 
-		// Update UI progress every 50 files or on completion
-		if ui != nil && (i%50 == 0 || i == totalFiles-1) {
-			pct := int(float64(i+1) / float64(totalFiles) * 90) // 0-90% for file extraction
-			ui.SetProgress(pct, fmt.Sprintf("正在释放 [%d/%d]: %s", i+1, totalFiles, truncateName(file.Name, 42)))
+		select {
+		case <-doneChan:
+			completed = true
+		case <-ticker.C:
+			if ui != nil && totalFiles > 0 {
+				done := atomic.LoadInt64(&processedCount)
+				pct := int(float64(done) / float64(totalFiles) * 90)
+				ui.SetProgress(pct, fmt.Sprintf("正在极速释放核心组件 [%d/%d]...", done, totalFiles))
+			}
 		}
 	}
 
-	// 4. Create shortcuts (90% - 98%)
-	if ui != nil {
-		ui.SetProgress(92, "正在生成桌面快捷方式与系统启动项...")
-	}
-	err = createAllShortcuts(installDir)
-	logMsg("createAllShortcuts result: %v", err)
-	time.Sleep(300 * time.Millisecond)
+	logMsg("Extraction completed successfully (%d files)", totalFiles)
 
-	// 5. Finished
 	if ui != nil {
-		ui.SetProgress(100, "安装完毕！即将自动启动 Mowan Harness...")
-		ui.SetTitle("Mowan Harness 安装完成！")
-		time.Sleep(900 * time.Millisecond)
+		ui.SetProgress(95, "正在生成桌面快捷方式与系统启动项...")
+		ui.ProcessMessages()
+	}
+	_ = createAllShortcuts(installDir)
+	logMsg("Shortcuts created")
+
+	if ui != nil {
+		ui.SetProgress(100, "安装完毕！正在启动 魔丸...")
+		ui.SetTitle("魔丸 安装完成！")
+		for k := 0; k < 20; k++ {
+			ui.ProcessMessages()
+			time.Sleep(20 * time.Millisecond)
+		}
 		ui.Close()
 	}
-	logMsg("Installer finished successfully")
 
-	// 6. Launch installed application
 	if !noLaunch {
-		appExe := filepath.Join(installDir, "Mowan-Harness.exe")
+		appExe := filepath.Join(installDir, "Mowan-Agent.exe")
 		cmd := exec.Command(appExe)
 		cmd.Dir = installDir
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			HideWindow:    true,
-			CreationFlags: 0x08000000,
+			CreationFlags: 0x08000000 | 0x00000008 | 0x00000200,
 		}
 		_ = cmd.Start()
+		logMsg("Launched Mowan-Agent.exe")
 	}
+	logMsg("Installer finished successfully")
 }
