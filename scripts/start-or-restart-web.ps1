@@ -69,7 +69,33 @@ if ($left) {
 }
 Write-Log 'Port 3090 is free.'
 
-Write-Log 'Starting web UI at http://127.0.0.1:3090'
+$lanIps = @()
+try {
+  $adapters = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object {
+      $_.InterfaceAlias -notmatch 'Loopback' -and
+      $_.IPAddress -notlike '169.254*' -and
+      $_.IPAddress -notlike '127.*'
+    }
+  $sorted = $adapters | Sort-Object {
+    $alias = $_.InterfaceAlias.ToLower()
+    $isVirtual = $alias -match 'vmware|virtual|vethernet|wsl|docker'
+    if ($isVirtual) { 1 } else { 0 }
+  }
+  $lanIps = ($sorted | Select-Object -ExpandProperty IPAddress)
+} catch {}
+if (-not $lanIps) {
+  try {
+    $lanIps = (ipconfig | Select-String "IPv4.*:\s*([0-9.]+)" | ForEach-Object { $_.Matches.Groups[1].Value })
+  } catch {}
+}
+
+if ($lanIps) {
+  $lanMsg = ($lanIps | ForEach-Object { "http://{0}:3090" -f $_ }) -join ', '
+  Write-Log ("Starting web UI at http://127.0.0.1:3090 (LAN: {0})" -f $lanMsg)
+} else {
+  Write-Log 'Starting web UI at http://127.0.0.1:3090'
+}
 Write-Log 'Close this window or press Ctrl+C to stop.'
 
 Start-Process -WindowStyle Hidden powershell.exe -ArgumentList @(
@@ -78,7 +104,7 @@ Start-Process -WindowStyle Hidden powershell.exe -ArgumentList @(
 ) | Out-Null
 
 try {
-  & $node --import tsx/esm apps/cli/src/bin.ts web
+  & $node --import tsx/esm apps/cli/src/bin.ts web --host 0.0.0.0
   $code = $LASTEXITCODE
 } catch {
   Write-Log ("ERROR: {0}" -f $_.Exception.Message)

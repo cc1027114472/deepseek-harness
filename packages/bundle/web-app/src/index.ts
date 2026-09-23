@@ -119,6 +119,21 @@ try {
 }
 `
 
+/** Calculate sort priority for LAN interfaces: physical router subnets come first, virtual adapters last. */
+function lanInterfacePriority(name: string, ip: string): number {
+  const lowerName = name.toLowerCase()
+  const isVirtual = lowerName.includes('vmware') || lowerName.includes('virtual')
+    || lowerName.includes('vethernet') || lowerName.includes('wsl') || lowerName.includes('docker')
+  let subnetRank = 4
+  if (ip.startsWith('192.168.')) subnetRank = 1
+  else if (ip.startsWith('10.')) subnetRank = 2
+  else {
+    const parts = ip.split('.').map(Number)
+    if (parts[0] === 172 && (parts[1] ?? 0) >= 16 && (parts[1] ?? 0) <= 31) subnetRank = 3
+  }
+  return (isVirtual ? 10 : 0) + subnetRank
+}
+
 /**
  * Resolve one LAN-trust snapshot from the active server bind.
  *
@@ -130,10 +145,19 @@ try {
  * @returns the LAN display addresses and invocation-derived fence authorities.
  */
 export function resolveLanTrust(bindHost: string, extra: readonly string[]): WebRuntimeValues {
+  const interfaces = networkInterfaces()
+  const entries: { name: string; address: string }[] = []
+  for (const [name, list] of Object.entries(interfaces)) {
+    for (const iface of list ?? []) {
+      if (iface.family === 'IPv4' && !iface.internal && !iface.address.startsWith('169.254.')) {
+        entries.push({ name, address: iface.address })
+      }
+    }
+  }
   const lanAddresses = bindHost === ALL_INTERFACES_HOST
-    ? Object.values(networkInterfaces()).flat()
-      .filter((iface): iface is NonNullable<typeof iface> => iface !== undefined && iface.family === 'IPv4' && !iface.internal)
-      .map(iface => iface.address)
+    ? entries
+      .sort((a, b) => lanInterfacePriority(a.name, a.address) - lanInterfacePriority(b.name, b.address))
+      .map(entry => entry.address)
     : []
   return { lanAddresses, trustedHosts: [...lanAddresses, ...extra] }
 }
