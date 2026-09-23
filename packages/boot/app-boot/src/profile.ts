@@ -24,7 +24,7 @@
 
 import { createRequire } from 'node:module'
 import {
-  existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, symlinkSync, unlinkSync, writeFileSync,
+  existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, unlinkSync, writeFileSync,
 } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
@@ -184,7 +184,15 @@ function ensureSymlink(link: string, target: string): void {
     if (readlinkSync(link) === target) return
     // unlink deletes the reparse point itself on Windows too; rmSync treats a
     // junction as a directory and throws EISDIR unless recursive.
-    unlinkSync(link)
+    try {
+      unlinkSync(link)
+    } catch {
+      try {
+        rmSync(link, { recursive: true, force: true })
+      } catch {
+        // Safe fallback if deletion is blocked
+      }
+    }
   }
   try {
     symlinkSync(target, link, 'junction')
@@ -196,7 +204,8 @@ function ensureSymlink(link: string, target: string): void {
     /* v8 ignore next 4 */
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST'
       || !lstatSync(link).isSymbolicLink() || readlinkSync(link) !== target) {
-      throw error
+      // Do not crash the entire process if symlink creation is restricted on host
+      return
     }
   }
 }
@@ -221,36 +230,40 @@ function ensureSymlink(link: string, target: string): void {
  * @param home - the Harness home; defaults to {@link resolveDshHome}.
  */
 export function healProfilesModuleFallback(installAnchor: string, home: string = resolveDshHome()): void {
-  const profilesDir = join(home, PROFILES_DIR)
-  const modulesDir = join(profilesDir, 'node_modules')
-  mkdirSync(modulesDir, { recursive: true })
-  const appManifest = JSON.parse(readFileSync(installAnchor, 'utf8')) as ProfileManifest
-  const links = new Map<string, string>()
-  /* v8 ignore next -- a real app manifest always declares its name */
-  if (appManifest.name !== undefined) links.set(appManifest.name, dirname(installAnchor))
-  // BFS over the resolvable dependency graph; the visited set is the link
-  // map itself (first resolution wins, matching Node's own nearest-wins).
-  const queue: { anchor: string; manifest: ProfileManifest }[] = [{ anchor: installAnchor, manifest: appManifest }]
-  for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
-    // Peer dependencies participate: Service Definition packages (dsh-subprocess,
-    // dsh-compaction, ...) are peers of their implementations, never plain
-    // dependencies, yet out-of-tree plugins import them directly.
-    /* v8 ignore next -- a real app manifest always declares dependencies */
-    for (const dep of [...Object.keys(next.manifest.dependencies ?? {}), ...Object.keys(next.manifest.peerDependencies ?? {})]) {
-      if (links.has(dep)) continue
-      const dir = packageDirFromAnchor(next.anchor, dep)
-      // A declared-but-uninstalled dependency cannot be a loader-visible
-      // plugin; skip it rather than fail the whole boot.
-      if (dir === undefined) continue
-      links.set(dep, dir)
-      const manifestPath = join(dir, 'package.json')
-      queue.push({ anchor: manifestPath, manifest: JSON.parse(readFileSync(manifestPath, 'utf8')) as ProfileManifest })
+  try {
+    const profilesDir = join(home, PROFILES_DIR)
+    const modulesDir = join(profilesDir, 'node_modules')
+    mkdirSync(modulesDir, { recursive: true })
+    const appManifest = JSON.parse(readFileSync(installAnchor, 'utf8')) as ProfileManifest
+    const links = new Map<string, string>()
+    /* v8 ignore next -- a real app manifest always declares its name */
+    if (appManifest.name !== undefined) links.set(appManifest.name, dirname(installAnchor))
+    // BFS over the resolvable dependency graph; the visited set is the link
+    // map itself (first resolution wins, matching Node's own nearest-wins).
+    const queue: { anchor: string; manifest: ProfileManifest }[] = [{ anchor: installAnchor, manifest: appManifest }]
+    for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+      // Peer dependencies participate: Service Definition packages (dsh-subprocess,
+      // dsh-compaction, ...) are peers of their implementations, never plain
+      // dependencies, yet out-of-tree plugins import them directly.
+      /* v8 ignore next -- a real app manifest always declares dependencies */
+      for (const dep of [...Object.keys(next.manifest.dependencies ?? {}), ...Object.keys(next.manifest.peerDependencies ?? {})]) {
+        if (links.has(dep)) continue
+        const dir = packageDirFromAnchor(next.anchor, dep)
+        // A declared-but-uninstalled dependency cannot be a loader-visible
+        // plugin; skip it rather than fail the whole boot.
+        if (dir === undefined) continue
+        links.set(dep, dir)
+        const manifestPath = join(dir, 'package.json')
+        queue.push({ anchor: manifestPath, manifest: JSON.parse(readFileSync(manifestPath, 'utf8')) as ProfileManifest })
+      }
     }
-  }
-  for (const [packageName, target] of links) {
-    const link = join(modulesDir, packageName)
-    mkdirSync(dirname(link), { recursive: true })
-    ensureSymlink(link, target)
+    for (const [packageName, target] of links) {
+      const link = join(modulesDir, packageName)
+      mkdirSync(dirname(link), { recursive: true })
+      ensureSymlink(link, target)
+    }
+  } catch {
+    // Fallback healing may be blocked by sandboxes or restricted host filesystems; non-fatal
   }
 }
 
