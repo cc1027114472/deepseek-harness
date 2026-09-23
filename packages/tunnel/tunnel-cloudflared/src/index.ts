@@ -18,7 +18,7 @@ export { createAuthMiddleware, extractToken, generateAuthToken, isLoopbackHost }
 export const Config: z<TunnelConfig> = z.object({
   enabled: z.boolean().default(false).description('Whether to automatically start the tunnel on startup'),
   mode: z.union(['quick', 'auth']).default('quick').description('Tunnel mode: quick (temporary) or auth (token)'),
-  port: z.number().default(3090).description('Local port to expose'),
+  port: z.number().default(3080).description('Local port to expose'),
   token: z.string().description('Cloudflare Named Tunnel token (when mode is auth)'),
   useHttp2: z.boolean().default(true).description('Use HTTP/2 protocol for better compatibility'),
   authToken: z.string().default('auto').description('Authentication token for remote access (auto generates a random token)'),

@@ -60,7 +60,7 @@ export class TunnelServiceImpl extends Service implements TunnelService {
 
   constructor(ctx: Context, config: TunnelConfig = {}) {
     super(ctx, 'tunnel')
-    const actualPort = (ctx as any).webStartup?.port ?? config.port ?? 3090
+    const actualPort = (ctx as any).webStartup?.port ?? config.port ?? 3080
     this.currentConfig = {
       port: actualPort,
       mode: 'quick',

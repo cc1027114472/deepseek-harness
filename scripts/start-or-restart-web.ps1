@@ -51,30 +51,30 @@ function Get-PortPids([int]$port) {
   return ($pids | Where-Object { $_ -gt 0 } | Sort-Object -Unique)
 }
 
-$pids = Get-PortPids 3090
+$pids = Get-PortPids 3080
 if ($pids) {
   foreach ($procId in $pids) {
-    Write-Log ("Stopping PID {0} on port 3090..." -f $procId)
+    Write-Log ("Stopping PID {0} on port 3080..." -f $procId)
     Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
     Start-Process -FilePath "taskkill.exe" -ArgumentList "/F", "/T", "/PID", $procId -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue
   }
   Start-Sleep -Seconds 1
 }
 
-$left = Get-PortPids 3090
+$left = Get-PortPids 3080
 if ($left) {
-  Write-Log 'ERROR: port 3090 is still in use.'
+  Write-Log 'ERROR: port 3080 is still in use.'
   Read-Host 'Press Enter to close'
   exit 1
 }
-Write-Log 'Port 3090 is free.'
+Write-Log 'Port 3080 is free.'
 
-Write-Log 'Starting web UI at http://127.0.0.1:3090'
+Write-Log 'Starting web UI at http://127.0.0.1:3080'
 Write-Log 'Close this window or press Ctrl+C to stop.'
 
 Start-Process -WindowStyle Hidden powershell.exe -ArgumentList @(
   '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
-  "Start-Sleep -Seconds 5; try { Invoke-WebRequest -Uri 'http://127.0.0.1:3090' -UseBasicParsing -TimeoutSec 3 | Out-Null; Start-Process 'http://127.0.0.1:3090' } catch {}"
+  "Start-Sleep -Seconds 5; try { Invoke-WebRequest -Uri 'http://127.0.0.1:3080' -UseBasicParsing -TimeoutSec 3 | Out-Null; Start-Process 'http://127.0.0.1:3080' } catch {}"
 ) | Out-Null
 
 try {

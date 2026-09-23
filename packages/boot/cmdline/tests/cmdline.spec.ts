@@ -104,7 +104,7 @@ export function apply(ctx) { return globalThis.__provideDemoArgs(ctx) }
         id: 'reader',
         name: pathToFileURL(join(dir, 'reader.mjs')).href,
         inject: options.objectInject === true ? { demoStartup: { required: true } } : ['demoStartup'],
-        config: { port: expression('ctx.demoStartup.port ?? 3090') },
+        config: { port: expression('ctx.demoStartup.port ?? 3080') },
       },
     ],
   }]
@@ -130,7 +130,7 @@ describe('parseCmdline', () => {
 
   it('leaves a row on the value written beside the expression when no flag names one', async () => {
     const { observed } = await bootFixture([])
-    expect(observed.started).toEqual({ port: 3090 })
+    expect(observed.started).toEqual({ port: 3080 })
   })
 
   it('recognizes the Loader object form of a provider-service injection', async () => {

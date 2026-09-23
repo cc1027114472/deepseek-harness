@@ -27,7 +27,7 @@ export interface TunnelConfig {
   enabled?: boolean
   /** Tunnel mode: quick (auto temporary URL) or auth (Cloudflare Named Tunnel with token). */
   mode?: TunnelMode
-  /** Target local port to expose. Default is 3090. */
+  /** Target local port to expose. Default is 3080. */
   port?: number
   /** Named tunnel token when mode is 'auth'. */
   token?: string
