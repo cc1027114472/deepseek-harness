@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -100,7 +101,7 @@ func getInstallDir() string {
 	return filepath.Join(localAppData, "Programs", "Mowan-Agent")
 }
 
-func killOldInstances() {
+func killOldInstances(installDir string) {
 	killCmd := func(name string) {
 		cmd := exec.Command("taskkill", "/F", "/IM", name, "/T")
 		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
@@ -108,6 +109,15 @@ func killOldInstances() {
 	}
 	killCmd("Mowan-Agent.exe")
 	killCmd("Mowan-Harness.exe")
+
+	if installDir != "" {
+		normDir := filepath.Clean(installDir)
+		psCmd := fmt.Sprintf(`Get-Process | Where-Object { $_.Path -and ($_.Path -like '%s*') } | Stop-Process -Force`, strings.ReplaceAll(normDir, `'`, `''`))
+		cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psCmd)
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+		_ = cmd.Run()
+	}
+
 	time.Sleep(300 * time.Millisecond)
 }
 
@@ -125,6 +135,9 @@ var (
 )
 
 func createNativeShortcut(dstLnk, targetPath, workDir, iconPath, description string) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	procCoInitialize.Call(0)
 	defer procCoUninitialize.Call()
 
@@ -356,6 +369,7 @@ func (ui *InstallUI) SetProgress(pct int, desc string) {
 	sendMessage.Call(ui.hwndProg, pbmSetPos, uintptr(pct), 0)
 	textPtr, _ := syscall.UTF16PtrFromString(desc)
 	setWindowText.Call(ui.hwndDesc, uintptr(unsafe.Pointer(textPtr)))
+	updateWindow.Call(ui.hwndDesc)
 }
 
 func (ui *InstallUI) SetTitle(title string) {
@@ -399,6 +413,9 @@ func logMsg(format string, a ...interface{}) {
 }
 
 func main() {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
 	logMsg("Installer started, raw os.Args: %v", os.Args)
 	exePath, err := os.Executable()
 	if err != nil {
@@ -410,12 +427,16 @@ func main() {
 
 	isSilent := false
 	noLaunch := false
+	testGui := false
 	customDir := ""
 	for i := 1; i < len(os.Args); i++ {
 		arg := os.Args[i]
 		if arg == "-y" || arg == "--silent" || arg == "-s" || arg == "/S" {
 			isSilent = true
 		} else if arg == "--no-launch" {
+			noLaunch = true
+		} else if arg == "--test-gui" {
+			testGui = true
 			noLaunch = true
 		} else if (arg == "--dir" || arg == "-d") && i+1 < len(os.Args) {
 			customDir = os.Args[i+1]
@@ -429,7 +450,7 @@ func main() {
 	}
 	logMsg("Install target dir: %s", installDir)
 
-	if !isSilent {
+	if !isSilent && !testGui {
 		confirm := showMessage(
 			"魔丸 安装向导",
 			"欢迎使用 魔丸 (Mowan Agent) 安装向导！\n\n程序将被安装到:\n"+installDir+"\n\n点击 [确定] 开始安装，点击 [取消] 退出。",
@@ -440,7 +461,7 @@ func main() {
 		}
 	}
 
-	killOldInstances()
+	killOldInstances(installDir)
 
 	zipReader, err := zip.OpenReader(exePath)
 	if err != nil {
@@ -467,91 +488,115 @@ func main() {
 		ui, _ = createInstallUI()
 	}
 
-	// 4. Pre-create all directories first (eliminates NTFS directory lock contention)
-	if ui != nil {
-		ui.SetProgress(5, "正在初始化安装目录结构...")
-		ui.ProcessMessages()
+	type progressMsg struct {
+		pct  int
+		desc string
 	}
-	dirs := make(map[string]struct{})
-	for _, file := range zipReader.File {
-		path := filepath.Join(installDir, file.Name)
-		if file.FileInfo().IsDir() {
-			dirs[path] = struct{}{}
-		} else {
-			dirs[filepath.Dir(path)] = struct{}{}
+	progressChan := make(chan progressMsg, 256)
+	installDone := make(chan struct{})
+
+	go func() {
+		defer close(installDone)
+
+		// 4. Pre-create all directories concurrently
+		progressChan <- progressMsg{pct: 5, desc: "正在初始化安装目录结构..."}
+		dirs := make(map[string]struct{})
+		for _, file := range zipReader.File {
+			path := filepath.Join(installDir, file.Name)
+			if file.FileInfo().IsDir() {
+				dirs[path] = struct{}{}
+			} else {
+				dirs[filepath.Dir(path)] = struct{}{}
+			}
 		}
-	}
-	for dir := range dirs {
-		_ = os.MkdirAll(toExtendedPath(dir), 0755)
-	}
 
-	// 5. Multi-worker concurrent file extraction
-	totalFiles := int64(len(zipReader.File))
-	var processedCount int64
-	numWorkers := 8
-	jobs := make(chan *zip.File, 2048)
-	var wg sync.WaitGroup
+		dirChan := make(chan string, 1024)
+		var dirWg sync.WaitGroup
+		for i := 0; i < 8; i++ {
+			dirWg.Add(1)
+			go func() {
+				defer dirWg.Done()
+				for d := range dirChan {
+					_ = os.MkdirAll(toExtendedPath(d), 0755)
+				}
+			}()
+		}
+		for dir := range dirs {
+			dirChan <- dir
+		}
+		close(dirChan)
+		dirWg.Wait()
 
-	for w := 0; w < numWorkers; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			buf := make([]byte, 64*1024)
-			for file := range jobs {
-				if !file.FileInfo().IsDir() {
-					path := filepath.Join(installDir, file.Name)
-					extPath := toExtendedPath(path)
+		// 5. Multi-worker concurrent file extraction
+		totalFiles := int64(len(zipReader.File))
+		var processedCount int64
+		numWorkers := 8
+		jobs := make(chan *zip.File, 2048)
+		var wg sync.WaitGroup
 
-					outFile, err := os.OpenFile(extPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
-					if err != nil {
-						outFile, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
-					}
-					if err == nil {
-						rc, err := file.Open()
-						if err == nil {
-							_, _ = io.CopyBuffer(outFile, rc, buf)
-							rc.Close()
+		for w := 0; w < numWorkers; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				buf := make([]byte, 64*1024)
+				for file := range jobs {
+					if !file.FileInfo().IsDir() {
+						path := filepath.Join(installDir, file.Name)
+						extPath := toExtendedPath(path)
+
+						outFile, err := os.OpenFile(extPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
+						if err != nil {
+							outFile, err = os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
 						}
-						outFile.Close()
+						if err == nil {
+							rc, err := file.Open()
+							if err == nil {
+								_, _ = io.CopyBuffer(outFile, rc, buf)
+								rc.Close()
+							}
+							outFile.Close()
+						}
+					}
+					cur := atomic.AddInt64(&processedCount, 1)
+					if cur%100 == 0 || cur == totalFiles {
+						pct := 5 + int(float64(cur)/float64(totalFiles)*85)
+						select {
+						case progressChan <- progressMsg{pct: pct, desc: fmt.Sprintf("正在极速释放核心组件 [%d/%d]...", cur, totalFiles)}:
+						default:
+						}
 					}
 				}
-				atomic.AddInt64(&processedCount, 1)
-			}
-		}()
-	}
+			}()
+		}
 
-	doneChan := make(chan struct{})
-	go func() {
 		for _, f := range zipReader.File {
 			jobs <- f
 		}
 		close(jobs)
 		wg.Wait()
-		close(doneChan)
+
+		logMsg("Extraction completed successfully (%d files)", totalFiles)
 	}()
 
-	ticker := time.NewTicker(30 * time.Millisecond)
+	ticker := time.NewTicker(15 * time.Millisecond)
 	defer ticker.Stop()
 
-	completed := false
-	for !completed {
+	loopDone := false
+	for !loopDone {
 		if ui != nil {
 			ui.ProcessMessages()
 		}
 
 		select {
-		case <-doneChan:
-			completed = true
-		case <-ticker.C:
-			if ui != nil && totalFiles > 0 {
-				done := atomic.LoadInt64(&processedCount)
-				pct := int(float64(done) / float64(totalFiles) * 90)
-				ui.SetProgress(pct, fmt.Sprintf("正在极速释放核心组件 [%d/%d]...", done, totalFiles))
+		case p := <-progressChan:
+			if ui != nil {
+				ui.SetProgress(p.pct, p.desc)
 			}
+		case <-installDone:
+			loopDone = true
+		case <-ticker.C:
 		}
 	}
-
-	logMsg("Extraction completed successfully (%d files)", totalFiles)
 
 	if ui != nil {
 		ui.SetProgress(95, "正在生成桌面快捷方式与系统启动项...")
@@ -563,7 +608,7 @@ func main() {
 	if ui != nil {
 		ui.SetProgress(100, "安装完毕！正在启动 魔丸...")
 		ui.SetTitle("魔丸 安装完成！")
-		for k := 0; k < 20; k++ {
+		for k := 0; k < 25; k++ {
 			ui.ProcessMessages()
 			time.Sleep(20 * time.Millisecond)
 		}

@@ -483,29 +483,13 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                   : null}
           </div>
           {props.credentialOnly === true ? null : (
-            <>
-              <div className={styles['field']}>
-                <span className={styles['fieldLabel']}>{t('baseUrl')}</span>
-                <input
-                  className={styles['input']}
-                  type="text"
-                  value={stringAt(draft, 'baseURL') ?? ''}
-                  placeholder={MOWAN_PUBLIC_BASE_URL}
-                  aria-label={t('baseUrl')}
-                  disabled={disabled}
-                  onChange={(event) => {
-                    setField('baseURL', event.target.value === '' ? undefined : event.target.value)
-                  }}
-                />
-              </div>
-              <ModelListEditor
-                {...catalogProps}
-                probe={probe}
-                probeBlocked={keyFailure}
-                api={api}
-                fetchButtonLabel={t('syncModels')}
-              />
-            </>
+            <ModelListEditor
+              {...catalogProps}
+              probe={probe}
+              probeBlocked={keyFailure}
+              api={api}
+              fetchButtonLabel={t('syncModels')}
+            />
           )}
         </>
       )

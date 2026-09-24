@@ -906,10 +906,9 @@ describe('ModelsSection', () => {
     expect(link.getAttribute('target')).toBe('_blank')
     expect(link.getAttribute('rel')).toBe('noreferrer')
 
-    // Verify flat layout: baseURL and syncModels button visible without clicking customized fold
+    // Verify flat layout: baseURL is hidden for mowan, syncModels button visible without clicking customized fold
     expect(screen.queryByText(en.customized)).toBeNull()
-    const baseURL = screen.getByLabelText<HTMLInputElement>(en.baseUrl)
-    expect(baseURL.placeholder).toBe('https://ukapi.cc/v1beta')
+    expect(screen.queryByLabelText(en.baseUrl)).toBeNull()
 
     // Verify sync models button
     expect(screen.getByRole('button', { name: en.syncModels })).toBeDefined()
