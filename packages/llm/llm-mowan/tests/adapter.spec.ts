@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import LlmRuntime from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { FileSettingsProvider } from '@deepseek-ai/dsh-settings-file'
@@ -128,7 +128,7 @@ describe('llm-mowan', () => {
     const call = await ctx.llm.prepareCall({ provider: 'mowan', model: 'gemini-3.7-flash-high' })
     const streamIter = call.stream({
       ...call.config,
-      messages: [{ role: 'user', content: 'hello' }],
+      messages: [createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })],
     })
 
     const chunks = []
