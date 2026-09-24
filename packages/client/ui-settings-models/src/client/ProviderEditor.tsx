@@ -233,7 +233,9 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   // What the form currently shows, which is what an interrogation must ask:
   // an edited-but-unsaved endpoint, and a key typed but not yet stored.
   const probeApi = stringAt(draft, 'api') ?? stringAt(fallback, 'api')
-  const probeBaseURL = stringAt(draft, 'baseURL') ?? stringAt(fallback, 'baseURL')
+  const probeBaseURL = stringAt(draft, 'baseURL')
+    ?? stringAt(fallback, 'baseURL')
+    ?? (layout === 'mowan' ? MOWAN_PUBLIC_BASE_URL : undefined)
   const probe = {
     settingsNs: namespace.ns,
     // Naming the route lets an adapter that already describes it answer from
@@ -372,6 +374,56 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       },
       onReset: () => { setDraft(current => schema.deletePath(current, ['models'])) },
     }
+
+    if (family === 'mowan') {
+      return (
+        <>
+          <div className={styles['field']}>
+            <span className={styles['fieldLabel']}>{t('keyInput')}</span>
+            <input
+              className={styles['input']}
+              type="password"
+              autoComplete="off"
+              value={keyDraft}
+              placeholder={keyPlaceholder}
+              aria-label={t('keyInput')}
+              aria-invalid={shownKeyFailure !== undefined}
+              required={props.credentialRequired === true}
+              autoFocus={props.autoFocusCredential === true}
+              disabled={disabled || keyLocked}
+              onChange={(event) => { setKeyDraft(event.target.value) }}
+            />
+            {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
+          </div>
+          {props.credentialOnly === true ? null : (
+            <>
+              <div className={styles['field']}>
+                <span className={styles['fieldLabel']}>{t('baseUrl')}</span>
+                <input
+                  className={styles['input']}
+                  type="text"
+                  value={stringAt(draft, 'baseURL') ?? ''}
+                  placeholder={MOWAN_PUBLIC_BASE_URL}
+                  aria-label={t('baseUrl')}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    setField('baseURL', event.target.value === '' ? undefined : event.target.value)
+                  }}
+                />
+              </div>
+              <ModelListEditor
+                {...catalogProps}
+                probe={probe}
+                probeBlocked={keyFailure}
+                api={api}
+                fetchButtonLabel={t('syncModels')}
+              />
+            </>
+          )}
+        </>
+      )
+    }
+
     return (
       <>
         <div className={styles['field']}>
@@ -468,7 +520,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
             {/* Both families edit the same rows through the same contract; only
                 the extras differ — DeepSeek's inherited capacities, pi-ai's
                 endpoint interrogation. */}
-            {family === 'deepseek' || family === 'mowan'
+            {family === 'deepseek'
               ? (
                 <DeepSeekModelsEditor
                   {...catalogProps}
@@ -494,6 +546,19 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
             <span className={styles['editorTitle']}>{props.displayName}</span>
             {props.provider !== props.displayName
               ? <span className={styles['editorRoute']}>{props.provider}</span>
+              : null}
+            {layout === 'mowan'
+              ? (
+                <a
+                  href="https://ukapi.cc"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={styles['editorLink']}
+                  title="https://ukapi.cc"
+                >
+                  https://ukapi.cc ↗
+                </a>
+              )
               : null}
           </div>
         )}

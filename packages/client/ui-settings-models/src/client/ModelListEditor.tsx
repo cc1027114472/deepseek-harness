@@ -83,6 +83,8 @@ export interface ModelListEditorProps {
   probeBlocked?: keyof typeof en | undefined
   /** Wire face the fetch action calls. */
   api: Pick<IApiClient, 'llm'>
+  /** Custom label for the fetch/sync action button. */
+  fetchButtonLabel?: string
   /** Section copy. */
   t: (key: keyof typeof en) => string
   /** Disable every control (read-only deployment or a pending write). */
@@ -339,7 +341,7 @@ export function ModelListEditor(props: ModelListEditorProps): ReactNode {
             : askable ? undefined : t('fetchNeedsBaseUrl')}
           onClick={() => { void fetchModels() }}
         >
-          {busy ? t('fetching') : t('fetchModels')}
+          {busy ? t('fetching') : (props.fetchButtonLabel ?? t('fetchModels'))}
         </button>
       </div>
       {models.length === 0 ? <p className={styles['modelEmpty']}>{t('modelsEmpty')}</p> : null}

@@ -876,6 +876,44 @@ describe('ModelsSection', () => {
     expect(baseURL.value).toBe('')
   })
 
+  it('renders mowan provider with flat layout, official link, and sync button', async () => {
+    const { face } = scriptedFace()
+    const bare: SettingsNamespaceView = {
+      ns: 'llm-mowan',
+      schema: JSON.parse(JSON.stringify(DeepSeekConfig.toJSON())) as unknown,
+      value: {},
+      applies: 'live',
+      secrets: [],
+      revision: 0,
+    }
+    const { ProviderEditor } = await import('../src/client/ProviderEditor.tsx')
+    render(<ProviderEditor
+      provider="mowan"
+      displayName="魔丸"
+      namespace={bare}
+      schema={settingsSchema}
+      settingsPath={[]}
+      api={face as never}
+      t={t}
+      readOnly={false}
+      onClose={() => {}}
+    />)
+
+    // Verify external link in header
+    const link = screen.getByRole('link', { name: /https:\/\/ukapi\.cc/ })
+    expect(link.getAttribute('href')).toBe('https://ukapi.cc')
+    expect(link.getAttribute('target')).toBe('_blank')
+    expect(link.getAttribute('rel')).toBe('noreferrer')
+
+    // Verify flat layout: baseURL and syncModels button visible without clicking customized fold
+    expect(screen.queryByText(en.customized)).toBeNull()
+    const baseURL = screen.getByLabelText<HTMLInputElement>(en.baseUrl)
+    expect(baseURL.placeholder).toBe('https://ukapi.cc/v1beta')
+
+    // Verify sync models button
+    expect(screen.getByRole('button', { name: en.syncModels })).toBeDefined()
+  })
+
   it('rejects an invalid draft before writing', async () => {
     const { update } = await mountDeepSeekCard()
     fireEvent.click(screen.getByText(en.customized))

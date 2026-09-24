@@ -253,6 +253,20 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
+.editorLink {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-brand-primary);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.editorLink:hover {
+  text-decoration: underline;
+}
+
 .field {
   display: flex;
   flex-direction: column;
