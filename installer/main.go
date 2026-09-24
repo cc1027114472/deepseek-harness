@@ -22,31 +22,43 @@ var (
 	gdi32Mod             = syscall.NewLazyDLL("gdi32.dll")
 	shell32Mod           = syscall.NewLazyDLL("shell32.dll")
 	modOle32             = syscall.NewLazyDLL("ole32.dll")
-	messageBox           = user32Mod.NewProc("MessageBoxW")
-	registerClassEx      = user32Mod.NewProc("RegisterClassExW")
-	createWindowEx       = user32Mod.NewProc("CreateWindowExW")
-	showWindow           = user32Mod.NewProc("ShowWindow")
-	updateWindow         = user32Mod.NewProc("UpdateWindow")
-	setWindowText        = user32Mod.NewProc("SetWindowTextW")
-	sendMessage          = user32Mod.NewProc("SendMessageW")
-	peekMessage          = user32Mod.NewProc("PeekMessageW")
-	translateMessage     = user32Mod.NewProc("TranslateMessage")
-	dispatchMessage      = user32Mod.NewProc("DispatchMessageW")
-	defWindowProc        = user32Mod.NewProc("DefWindowProcW")
-	destroyWindow        = user32Mod.NewProc("DestroyWindow")
-	getSystemMetrics     = user32Mod.NewProc("GetSystemMetrics")
-	initCommonControlsEx = comctl32Mod.NewProc("InitCommonControlsEx")
-	getStockObject       = gdi32Mod.NewProc("GetStockObject")
-	procCoInitialize     = modOle32.NewProc("CoInitialize")
-	procCoUninitialize   = modOle32.NewProc("CoUninitialize")
-	procCoCreateInstance = modOle32.NewProc("CoCreateInstance")
-	procSHGetFolderPathW = shell32Mod.NewProc("SHGetFolderPathW")
+	messageBox               = user32Mod.NewProc("MessageBoxW")
+	registerClassEx          = user32Mod.NewProc("RegisterClassExW")
+	createWindowEx           = user32Mod.NewProc("CreateWindowExW")
+	showWindow               = user32Mod.NewProc("ShowWindow")
+	updateWindow             = user32Mod.NewProc("UpdateWindow")
+	setWindowText            = user32Mod.NewProc("SetWindowTextW")
+	getWindowText            = user32Mod.NewProc("GetWindowTextW")
+	setWindowPos             = user32Mod.NewProc("SetWindowPos")
+	sendMessage              = user32Mod.NewProc("SendMessageW")
+	peekMessage              = user32Mod.NewProc("PeekMessageW")
+	translateMessage         = user32Mod.NewProc("TranslateMessage")
+	dispatchMessage          = user32Mod.NewProc("DispatchMessageW")
+	defWindowProc            = user32Mod.NewProc("DefWindowProcW")
+	destroyWindow            = user32Mod.NewProc("DestroyWindow")
+	getSystemMetrics         = user32Mod.NewProc("GetSystemMetrics")
+	initCommonControlsEx     = comctl32Mod.NewProc("InitCommonControlsEx")
+	getStockObject           = gdi32Mod.NewProc("GetStockObject")
+	procCoInitialize         = modOle32.NewProc("CoInitialize")
+	procCoUninitialize       = modOle32.NewProc("CoUninitialize")
+	procCoCreateInstance     = modOle32.NewProc("CoCreateInstance")
+	procCoTaskMemFree        = modOle32.NewProc("CoTaskMemFree")
+	procSHGetFolderPathW     = shell32Mod.NewProc("SHGetFolderPathW")
+	procSHBrowseForFolderW   = shell32Mod.NewProc("SHBrowseForFolderW")
+	procSHGetPathFromIDListW = shell32Mod.NewProc("SHGetPathFromIDListW")
 )
 
 const (
 	wsOverlappedWindow = 0x00CF0000
 	wsVisible          = 0x10000000
 	wsChild            = 0x40000000
+	wsBorder           = 0x00800000
+	wsTabStop          = 0x00010000
+	esAutoHScroll      = 0x0080
+	bsPushButton       = 0x00000000
+	bsDefPushBtn       = 0x00000001
+	swHide             = 0
+	swShow             = 5
 	pbmSetRange32      = 0x0406
 	pbmSetPos          = 0x0402
 	pbsSmooth          = 0x01
@@ -54,6 +66,11 @@ const (
 	defaultGuiFont     = 17
 	smCxScreen         = 0
 	smCyScreen         = 1
+
+	idEditPath   = 101
+	idBtnBrowse  = 102
+	idBtnInstall = 103
+	idBtnCancel  = 104
 )
 
 type initControlsPayload struct {
@@ -244,19 +261,115 @@ func createAllShortcuts(installDir string) error {
 	return nil
 }
 
+type browseInfo struct {
+	hwndOwner      uintptr
+	pidlRoot       uintptr
+	pszDisplayName *uint16
+	lpszTitle      *uint16
+	ulFlags        uint32
+	_pad           uint32
+	lpfn           uintptr
+	lParam         uintptr
+	iImage         int32
+	_pad2          int32
+}
+
+func pickFolder(hwndOwner uintptr, title string) (string, error) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	procCoInitialize.Call(0)
+	defer procCoUninitialize.Call()
+
+	titlePtr, _ := syscall.UTF16PtrFromString(title)
+	displayBuf := make([]uint16, 260)
+	bi := browseInfo{
+		hwndOwner:      hwndOwner,
+		pszDisplayName: &displayBuf[0],
+		lpszTitle:      titlePtr,
+		ulFlags:        0x00000001 | 0x00000040, // BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE
+	}
+	pidl, _, _ := procSHBrowseForFolderW.Call(uintptr(unsafe.Pointer(&bi)))
+	if pidl == 0 {
+		return "", nil
+	}
+	defer procCoTaskMemFree.Call(pidl)
+
+	pathBuf := make([]uint16, 1024)
+	r, _, _ := procSHGetPathFromIDListW.Call(pidl, uintptr(unsafe.Pointer(&pathBuf[0])))
+	if r == 0 {
+		return "", fmt.Errorf("failed to get path from ID list")
+	}
+	return syscall.UTF16ToString(pathBuf), nil
+}
+
+type InstallUI struct {
+	hwndMain       uintptr
+	hwndTitle      uintptr
+	hwndPathPrompt uintptr
+	hwndEditPath   uintptr
+	hwndBtnBrowse  uintptr
+	hwndBtnInstall uintptr
+	hwndBtnCancel  uintptr
+	hwndProg       uintptr
+	hwndDesc       uintptr
+	hwndFooter     uintptr
+
+	installDir     string
+	installStarted bool
+	userCancelled  bool
+}
+
+var activeUI *InstallUI
+
 func windowProc(hwnd uintptr, uMsg uint32, wParam uintptr, lParam uintptr) uintptr {
+	switch uMsg {
+	case 0x0111: // WM_COMMAND
+		cmdId := int(wParam & 0xFFFF)
+		if activeUI != nil {
+			switch cmdId {
+			case idBtnBrowse:
+				selected, err := pickFolder(activeUI.hwndMain, "请选择魔丸安装目录：")
+				if err == nil && selected != "" {
+					base := filepath.Base(selected)
+					if selected == `\` || base == `\` || base == "." || !strings.EqualFold(base, "Mowan-Agent") {
+						selected = filepath.Join(selected, "Mowan-Agent")
+					}
+					activeUI.SetInstallPath(selected)
+				}
+				return 0
+			case idBtnInstall:
+				path := strings.TrimSpace(activeUI.GetInstallPath())
+				if path == "" {
+					showMessage("提示", "安装路径不能为空，请选择或输入有效的安装路径。", 0x30)
+					return 0
+				}
+				if strings.ContainsAny(path, "*?\"<>|") {
+					showMessage("提示", "安装路径包含非法字符，请重新输入或通过[浏览]按钮选择。", 0x30)
+					return 0
+				}
+				activeUI.installDir = filepath.Clean(path)
+				activeUI.SwitchToInstalling()
+				activeUI.installStarted = true
+				return 0
+			case idBtnCancel:
+				activeUI.userCancelled = true
+				destroyWindow.Call(activeUI.hwndMain)
+				return 0
+			}
+		}
+	case 0x0010: // WM_CLOSE
+		if activeUI != nil {
+			activeUI.userCancelled = true
+		}
+		destroyWindow.Call(hwnd)
+		return 0
+	}
 	r, _, _ := defWindowProc.Call(hwnd, uintptr(uMsg), wParam, lParam)
 	return r
 }
 
-type InstallUI struct {
-	hwndMain  uintptr
-	hwndProg  uintptr
-	hwndTitle uintptr
-	hwndDesc  uintptr
-}
-
-func createInstallUI() (*InstallUI, error) {
+func createInstallUI(initialDir string) (*InstallUI, error) {
 	ic := initControlsPayload{
 		dwSize: uint32(unsafe.Sizeof(initControlsPayload{})),
 		dwICC:  0x00000020, // ICC_PROGRESS_CLASS
@@ -274,8 +387,8 @@ func createInstallUI() (*InstallUI, error) {
 	}
 	registerClassEx.Call(uintptr(unsafe.Pointer(&wcls)))
 
-	width := int32(500)
-	height := int32(230)
+	width := int32(520)
+	height := int32(250)
 
 	sw, _, _ := getSystemMetrics.Call(smCxScreen)
 	sh, _, _ := getSystemMetrics.Call(smCyScreen)
@@ -293,24 +406,88 @@ func createInstallUI() (*InstallUI, error) {
 	)
 
 	staticClass, _ := syscall.UTF16PtrFromString("STATIC")
+	editClass, _ := syscall.UTF16PtrFromString("EDIT")
+	btnClass, _ := syscall.UTF16PtrFromString("BUTTON")
 	progClass, _ := syscall.UTF16PtrFromString("msctls_progress32")
 
-	titleText, _ := syscall.UTF16PtrFromString("正在安装 魔丸，请稍候...")
+	titleText, _ := syscall.UTF16PtrFromString("欢迎安装 魔丸 (Mowan Agent)")
 	hwndTitle, _, _ := createWindowEx.Call(
 		0,
 		uintptr(unsafe.Pointer(staticClass)),
 		uintptr(unsafe.Pointer(titleText)),
 		uintptr(wsChild|wsVisible),
-		28, 20, 440, 24,
+		28, 18, 460, 24,
 		hwndMain, 0, 0, 0,
 	)
 
+	// Phase 1 controls
+	promptText, _ := syscall.UTF16PtrFromString("目标安装路径（支持任意盘符与目录）：")
+	hwndPathPrompt, _, _ := createWindowEx.Call(
+		0,
+		uintptr(unsafe.Pointer(staticClass)),
+		uintptr(unsafe.Pointer(promptText)),
+		uintptr(wsChild|wsVisible),
+		28, 52, 460, 20,
+		hwndMain, 0, 0, 0,
+	)
+
+	pathInitText, _ := syscall.UTF16PtrFromString(initialDir)
+	hwndEditPath, _, _ := createWindowEx.Call(
+		0x00000200, // WS_EX_CLIENTEDGE
+		uintptr(unsafe.Pointer(editClass)),
+		uintptr(unsafe.Pointer(pathInitText)),
+		uintptr(wsChild|wsVisible|wsBorder|wsTabStop|esAutoHScroll),
+		28, 76, 365, 26,
+		hwndMain, uintptr(idEditPath), 0, 0,
+	)
+
+	browseBtnText, _ := syscall.UTF16PtrFromString("浏览...")
+	hwndBtnBrowse, _, _ := createWindowEx.Call(
+		0,
+		uintptr(unsafe.Pointer(btnClass)),
+		uintptr(unsafe.Pointer(browseBtnText)),
+		uintptr(wsChild|wsVisible|wsTabStop|bsPushButton),
+		403, 75, 85, 28,
+		hwndMain, uintptr(idBtnBrowse), 0, 0,
+	)
+
+	footerText, _ := syscall.UTF16PtrFromString("安装完成后将自动在桌面生成快捷方式，并在浏览器中打开控制台。")
+	hwndFooter, _, _ := createWindowEx.Call(
+		0,
+		uintptr(unsafe.Pointer(staticClass)),
+		uintptr(unsafe.Pointer(footerText)),
+		uintptr(wsChild|wsVisible),
+		28, 116, 460, 20,
+		hwndMain, 0, 0, 0,
+	)
+
+	installBtnText, _ := syscall.UTF16PtrFromString("立即安装")
+	hwndBtnInstall, _, _ := createWindowEx.Call(
+		0,
+		uintptr(unsafe.Pointer(btnClass)),
+		uintptr(unsafe.Pointer(installBtnText)),
+		uintptr(wsChild|wsVisible|wsTabStop|bsDefPushBtn),
+		288, 155, 100, 32,
+		hwndMain, uintptr(idBtnInstall), 0, 0,
+	)
+
+	cancelBtnText, _ := syscall.UTF16PtrFromString("取消")
+	hwndBtnCancel, _, _ := createWindowEx.Call(
+		0,
+		uintptr(unsafe.Pointer(btnClass)),
+		uintptr(unsafe.Pointer(cancelBtnText)),
+		uintptr(wsChild|wsVisible|wsTabStop|bsPushButton),
+		398, 155, 90, 32,
+		hwndMain, uintptr(idBtnCancel), 0, 0,
+	)
+
+	// Phase 2 controls (initially hidden)
 	hwndProg, _, _ := createWindowEx.Call(
 		0,
 		uintptr(unsafe.Pointer(progClass)),
 		0,
-		uintptr(wsChild|wsVisible|pbsSmooth),
-		28, 55, 440, 24,
+		uintptr(wsChild|pbsSmooth),
+		28, 60, 460, 26,
 		hwndMain, 0, 0, 0,
 	)
 	sendMessage.Call(hwndProg, pbmSetRange32, 0, 100)
@@ -320,24 +497,19 @@ func createInstallUI() (*InstallUI, error) {
 		0,
 		uintptr(unsafe.Pointer(staticClass)),
 		uintptr(unsafe.Pointer(descText)),
-		uintptr(wsChild|wsVisible),
-		28, 90, 440, 45,
-		hwndMain, 0, 0, 0,
-	)
-
-	footerText, _ := syscall.UTF16PtrFromString("安装完成后将自动在桌面生成快捷方式，并在浏览器中打开控制台。")
-	hwndFooter, _, _ := createWindowEx.Call(
-		0,
-		uintptr(unsafe.Pointer(staticClass)),
-		uintptr(unsafe.Pointer(footerText)),
-		uintptr(wsChild|wsVisible),
-		28, 145, 440, 20,
+		uintptr(wsChild),
+		28, 98, 460, 45,
 		hwndMain, 0, 0, 0,
 	)
 
 	hFont, _, _ := getStockObject.Call(defaultGuiFont)
 	if hFont != 0 {
 		sendMessage.Call(hwndTitle, wmSetFont, hFont, 1)
+		sendMessage.Call(hwndPathPrompt, wmSetFont, hFont, 1)
+		sendMessage.Call(hwndEditPath, wmSetFont, hFont, 1)
+		sendMessage.Call(hwndBtnBrowse, wmSetFont, hFont, 1)
+		sendMessage.Call(hwndBtnInstall, wmSetFont, hFont, 1)
+		sendMessage.Call(hwndBtnCancel, wmSetFont, hFont, 1)
 		sendMessage.Call(hwndDesc, wmSetFont, hFont, 1)
 		sendMessage.Call(hwndFooter, wmSetFont, hFont, 1)
 	}
@@ -345,12 +517,53 @@ func createInstallUI() (*InstallUI, error) {
 	showWindow.Call(hwndMain, 1)
 	updateWindow.Call(hwndMain)
 
-	return &InstallUI{
-		hwndMain:  hwndMain,
-		hwndProg:  hwndProg,
-		hwndTitle: hwndTitle,
-		hwndDesc:  hwndDesc,
-	}, nil
+	ui := &InstallUI{
+		hwndMain:       hwndMain,
+		hwndTitle:      hwndTitle,
+		hwndPathPrompt: hwndPathPrompt,
+		hwndEditPath:   hwndEditPath,
+		hwndBtnBrowse:  hwndBtnBrowse,
+		hwndBtnInstall: hwndBtnInstall,
+		hwndBtnCancel:  hwndBtnCancel,
+		hwndProg:       hwndProg,
+		hwndDesc:       hwndDesc,
+		hwndFooter:     hwndFooter,
+		installDir:     initialDir,
+	}
+	activeUI = ui
+	return ui, nil
+}
+
+func (ui *InstallUI) GetInstallPath() string {
+	buf := make([]uint16, 1024)
+	r, _, _ := getWindowText.Call(ui.hwndEditPath, uintptr(unsafe.Pointer(&buf[0])), 1024)
+	if r == 0 {
+		return ""
+	}
+	return syscall.UTF16ToString(buf)
+}
+
+func (ui *InstallUI) SetInstallPath(path string) {
+	p, _ := syscall.UTF16PtrFromString(path)
+	setWindowText.Call(ui.hwndEditPath, uintptr(unsafe.Pointer(p)))
+}
+
+func (ui *InstallUI) SwitchToInstalling() {
+	showWindow.Call(ui.hwndPathPrompt, swHide)
+	showWindow.Call(ui.hwndEditPath, swHide)
+	showWindow.Call(ui.hwndBtnBrowse, swHide)
+	showWindow.Call(ui.hwndBtnInstall, swHide)
+	showWindow.Call(ui.hwndBtnCancel, swHide)
+
+	titleText, _ := syscall.UTF16PtrFromString("正在安装 魔丸，请稍候...")
+	setWindowText.Call(ui.hwndTitle, uintptr(unsafe.Pointer(titleText)))
+
+	showWindow.Call(ui.hwndProg, swShow)
+	showWindow.Call(ui.hwndDesc, swShow)
+
+	setWindowPos.Call(ui.hwndFooter, 0, 28, 155, 460, 20, 0x0004|0x0010)
+
+	updateWindow.Call(ui.hwndMain)
 }
 
 func (ui *InstallUI) ProcessMessages() {
@@ -448,19 +661,37 @@ func main() {
 	if customDir != "" {
 		installDir = customDir
 	}
-	logMsg("Install target dir: %s", installDir)
+	logMsg("Default install target dir: %s", installDir)
 
-	if !isSilent && !testGui {
-		confirm := showMessage(
-			"魔丸 安装向导",
-			"欢迎使用 魔丸 (Mowan Agent) 安装向导！\n\n程序将被安装到:\n"+installDir+"\n\n点击 [确定] 开始安装，点击 [取消] 退出。",
-			0x01|0x40, // MB_OKCANCEL | MB_ICONINFORMATION
-		)
-		if confirm != 1 {
+	var ui *InstallUI
+	if !isSilent {
+		var err error
+		ui, err = createInstallUI(installDir)
+		if err != nil {
+			logMsg("Failed to create UI: %v", err)
 			return
 		}
+
+		if !testGui {
+			// Phase 1: Wait for user to confirm path or cancel
+			for !ui.installStarted && !ui.userCancelled {
+				ui.ProcessMessages()
+				time.Sleep(15 * time.Millisecond)
+			}
+			if ui.userCancelled {
+				logMsg("Installation cancelled by user")
+				ui.Close()
+				return
+			}
+		} else {
+			ui.SwitchToInstalling()
+			ui.installStarted = true
+		}
+
+		installDir = ui.installDir
 	}
 
+	logMsg("Final install target dir: %s", installDir)
 	killOldInstances(installDir)
 
 	zipReader, err := zip.OpenReader(exePath)
@@ -469,6 +700,9 @@ func main() {
 		zipReader, err = zip.OpenReader(siblingZip)
 		if err != nil {
 			logMsg("Failed to open zip reader: %v", err)
+			if ui != nil {
+				ui.Close()
+			}
 			showMessage("安装错误", "未能找到安装数据包 (payload.zip)。\n请确保安装程序完整无损。", 0x10)
 			return
 		}
@@ -477,15 +711,11 @@ func main() {
 
 	if err := os.MkdirAll(installDir, 0755); err != nil {
 		logMsg("Failed to create install dir: %v", err)
-		if !isSilent {
-			showMessage("安装错误", "无法创建安装目录: "+err.Error(), 0x10)
+		if ui != nil {
+			ui.Close()
 		}
+		showMessage("安装错误", "无法创建安装目录: "+err.Error(), 0x10)
 		return
-	}
-
-	var ui *InstallUI
-	if !isSilent {
-		ui, _ = createInstallUI()
 	}
 
 	type progressMsg struct {
