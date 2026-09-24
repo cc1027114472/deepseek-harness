@@ -21,10 +21,22 @@
       "path": "../../llm/llm"
     },
     {
+      "path": "../../llm/llm-pi-ai"
+    },
+    {
       "path": "../../credentials/credentials"
     },
     {
+      "path": "../../credentials/authorization"
+    },
+    {
       "path": "../../settings/settings"
+    },
+    {
+      "path": "../../util/launch-environment"
+    },
+    {
+      "path": "../../util/timeout"
     },
     {
       "path": "../../runtime-diagnostics/invariants"
