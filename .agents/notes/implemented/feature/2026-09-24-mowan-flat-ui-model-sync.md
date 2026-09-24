@@ -1,0 +1,24 @@
+# Agent Note: 魔丸平铺UI与动态模型同步
+
+Status: implemented
+
+## Problem
+
+用户在模型配置界面中配置魔丸（mowan）提供商时，模型列表隐藏在 `<details>` 折叠层中，无法直接查看与管理；同时卡片缺少直达魔丸官方网站的跳转入口，且无法动态探测与同步网关最新的可用模型列表。
+
+## Decision
+
+1. 在卡片标题区右侧渲染魔丸官方网站直达外链 `https://ukapi.cc ↗`，使用 `target="_blank"` 与 `rel="noreferrer"` 保障跳转安全。
+2. 采用完全平铺布局，移除魔丸卡片的折叠标签，将 API 密钥输入框、API 地址（baseURL，默认 `https://ukapi.cc/v1beta`）以及模型列表编辑器平铺展示。
+3. 后端 `@deepseek-ai/dsh-llm-mowan` 注册 `registerModelDiscovery` 服务，通过向魔丸网关 `/models` 发起探测请求解析可用模型列表。
+4. 前端模型管理区接入「同步模型」按钮，点击后通过 `api.llm.discoverModels` 探测网关并弹出候选模型弹窗，支持勾选后自动去重合并。
+
+## Alternatives considered
+
+- **仅平铺模型列表，API 地址留在折叠层**：保留折叠层会导致视觉层级不一致，增加用户操作步骤，未被采纳。
+- **自定义可编辑的官网链接**：魔丸为官方预置独立提供商，其官方网站地址固定为 `https://ukapi.cc`，无需引入额外的可配置字段。
+
+## Consequences
+
+- 魔丸提供商卡片结构更加扁平直观，用户可以一目了然地看到所有可用模型并一键触发同步。
+- `ModelListEditor` 增加了可选的 `fetchButtonLabel` 属性，能够灵活展示定制化操作文案。
