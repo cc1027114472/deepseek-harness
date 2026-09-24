@@ -274,7 +274,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       if (res.ok) {
         setKeyVerification({ status: 'valid' })
       } else {
-        setKeyVerification({ status: 'invalid', message: res.message })
+        setKeyVerification({
+          status: 'invalid',
+          ...res.message !== undefined ? { message: res.message } : {},
+        })
       }
     } catch (error) {
       setKeyVerification({ status: 'invalid', message: messageOf(error) })
@@ -294,7 +297,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       const verification = await runKeyVerification(keyValue)
       if (!verification.ok) {
         const errorMsg = verification.message ?? t('keyInvalid')
-        setKeyVerification({ status: 'invalid', message: errorMsg })
+        setKeyVerification({
+          status: 'invalid',
+          ...errorMsg !== undefined ? { message: errorMsg } : {},
+        })
         return `${t('keyInvalid')}: ${errorMsg}`
       }
       setKeyVerification({ status: 'valid' })
@@ -559,11 +565,9 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                 className={styles['input']}
                 type="text"
                 value={stringAt(draft, 'baseURL') ?? ''}
-                placeholder={family === 'mowan'
-                  ? MOWAN_PUBLIC_BASE_URL
-                  : family === 'deepseek'
-                    ? DEEPSEEK_PUBLIC_BASE_URL
-                    : stringAt(fallback, 'baseURL') ?? t('baseUrlDefault')}
+                placeholder={family === 'deepseek'
+                  ? DEEPSEEK_PUBLIC_BASE_URL
+                  : stringAt(fallback, 'baseURL') ?? t('baseUrlDefault')}
                 aria-label={t('baseUrl')}
                 disabled={disabled}
                 onChange={(event) => {

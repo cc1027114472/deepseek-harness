@@ -161,7 +161,7 @@ function scriptedFace(overrides: {
         ],
       }))),
       models: vi.fn(() => Promise.resolve(ok({ groups: [], failures: [] }))),
-      discoverModels: vi.fn(() => Promise.resolve(ok([]))),
+      discoverModels: vi.fn((_request?: unknown) => Promise.resolve(ok([]))),
     },
     settings: {
       describe: vi.fn(() => Promise.resolve(ok({ writable: true, hasDocument: false, namespaces: wireNamespaces() }))),
@@ -917,10 +917,10 @@ describe('ModelsSection', () => {
 
   it('verifies mowan API key on demand and on save', async () => {
     const { face } = scriptedFace()
-    face.llm.discoverModels = vi.fn((request: { apiKey?: string }) => {
-      if (request.apiKey === 'valid-key') return Promise.resolve(ok([]))
-      return Promise.resolve(fail({ code: 'model-discovery-failed', message: '401 Unauthorized' }))
-    })
+    face.llm.discoverModels = vi.fn((request?: { apiKey?: string }) => {
+      if (request?.apiKey === 'valid-key') return Promise.resolve(ok([]))
+      return Promise.resolve(fail('401 Unauthorized', 'model-discovery-failed'))
+    }) as never
     const bare: SettingsNamespaceView = {
       ns: 'llm-mowan',
       schema: JSON.parse(JSON.stringify(DeepSeekConfig.toJSON())) as unknown,
