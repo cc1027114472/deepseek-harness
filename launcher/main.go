@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -156,10 +158,25 @@ func checkPortActive(port int) bool {
 	return false
 }
 
+func parseDeeplinkToWebURL(deeplink string, port int) string {
+	u, err := url.Parse(deeplink)
+	if err != nil {
+		return fmt.Sprintf("http://127.0.0.1:%d/#/settings", port)
+	}
+
+	q := u.Query()
+	q.Set("action", "import-provider")
+
+	return fmt.Sprintf("http://127.0.0.1:%d/#/settings?%s", port, q.Encode())
+}
+
 func main() {
-	portFlag := flag.Int("port", 0, "Web server port (default: 3090, auto-detects 3090 or 3080 if running)")
+	portFlag := flag.Int("port", 0, "Web server port (default: 3090)")
 	noOpenFlag := flag.Bool("no-open", false, "Do not auto-open browser on launch")
 	flag.Parse()
+
+	// Automatically ensure mowan:// custom URL scheme is registered
+	registerURLScheme("mowan")
 
 	rootDir := findRootDir()
 	port := *portFlag
@@ -169,6 +186,26 @@ func main() {
 	}
 
 	serviceURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+
+	// Check if invoked via mowan:// deeplink
+	var deeplinkURL string
+	for _, arg := range os.Args[1:] {
+		if strings.HasPrefix(arg, "mowan://") {
+			deeplinkURL = arg
+			break
+		}
+	}
+
+	targetURL := serviceURL
+	if deeplinkURL != "" {
+		targetURL = parseDeeplinkToWebURL(deeplinkURL, port)
+	}
+
+	// If server is already running on this port, simply open target in browser and exit
+	if checkPortActive(port) {
+		_ = OpenBrowser(targetURL)
+		return
+	}
 
 	server := &ServerManager{
 		rootDir:    rootDir,
@@ -185,7 +222,7 @@ func main() {
 	if !*noOpenFlag {
 		go func() {
 			if waitForReady(serviceURL, 20*time.Second) {
-				_ = OpenBrowser(serviceURL)
+				_ = OpenBrowser(targetURL)
 			}
 		}()
 	}

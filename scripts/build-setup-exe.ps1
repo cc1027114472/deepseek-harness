@@ -31,9 +31,10 @@ go build -ldflags="-H windowsgui -s -w" -o "$root\installer\installer-base.exe" 
 Pop-Location
 Write-Host "✓ Installer shell built: installer\installer-base.exe" -ForegroundColor Green
 
-# 4. Generate clean flat bundle and pack payload archive
+# 4. Generate clean flat bundle, obfuscate proprietary code, and pack payload archive
 Write-Host "`n[4/5] Generating hoisted flat bundle and packing archive..." -ForegroundColor Yellow
 node "$root\scripts\bundle-flat.mjs"
+node "$root\scripts\obfuscate-flat-bundle.mjs"
 
 $distDir = "$root\dist"
 $flatDir = "$distDir\flat-bundle"
