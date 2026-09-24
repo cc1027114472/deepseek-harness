@@ -132,6 +132,25 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
     setCompletedOnboarding(new Set())
   }, [onboardingActive])
 
+  useEffect(() => {
+    const handleOpen = (e: Event) => {
+      const customEvent = e as CustomEvent<{ section?: string }>
+      openSection(customEvent.detail?.section || 'models')
+    }
+    window.addEventListener('dsh:open-settings', handleOpen)
+
+    // 检查是否有来自外部一键下发的待处理配置
+    if (localStorage.getItem('mowan_pending_import_provider')) {
+      setTimeout(() => {
+        openSection('models')
+      }, 150)
+    }
+
+    return () => {
+      window.removeEventListener('dsh:open-settings', handleOpen)
+    }
+  }, [openSection])
+
   const completeOnboardingStep = useCallback((id: string) => {
     setCompletedOnboarding((previous) => {
       if (previous.has(id)) return previous

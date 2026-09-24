@@ -43,7 +43,7 @@ if (Test-Path $payloadZip) { Remove-Item -Force $payloadZip }
 
 Push-Location $flatDir
 if (Get-Command 7z -ErrorAction SilentlyContinue) {
-    & 7z a -tzip -mx=1 -mmt=on -bso0 -bsp0 $payloadZip .
+    & 7z a -tzip -mx=1 -mmt=on -y -bso0 -bsp0 $payloadZip .
 } else {
     tar.exe -c -a -f $payloadZip *
 }

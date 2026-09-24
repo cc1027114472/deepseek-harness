@@ -96,6 +96,8 @@ const IGNORED_PNPM_PACKAGES = new Set([
   'fast-check',
   'eslint-plugin-sonarjs',
   'istanbul-lib-report',
+  'javascript-obfuscator',
+  'bytenode',
 ]);
 
 const pnpmDir = path.join(rootDir, 'node_modules', '.pnpm');

@@ -150,6 +150,36 @@ function refFor(
   return typeof named === 'string' && named.length > 0 ? named : deriveKeyRef(provider)
 }
 
+function showImportSuccessToast(msg: string, isWarn = false) {
+  if (typeof document === 'undefined') return
+  const toast = document.createElement('div')
+  toast.style.cssText = `
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100000;
+    background: ${isWarn ? '#d97706' : '#059669'};
+    color: #ffffff;
+    padding: 12px 24px;
+    border-radius: 9999px;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+  `
+  toast.innerText = msg
+  document.body.appendChild(toast)
+  setTimeout(() => {
+    toast.style.opacity = '0'
+    toast.style.transform = 'translateX(-50%) translateY(-10px)'
+    setTimeout(() => toast.remove(), 300)
+  }, 4000)
+}
+
 /**
  * Render one provider's editing card.
  * @param props - the addressed profile plus wire faces and copy.
@@ -285,6 +315,56 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
       setVerifyingKey(false)
     }
   }
+
+  // 侦听来自 Sub2API 的自动下发密钥：自动填充、自动检测、自动保存
+  useEffect(() => {
+    if (layout !== 'mowan') return
+    const pendingRaw = localStorage.getItem('mowan_pending_import_provider')
+    if (!pendingRaw) return
+
+    let data: { apiKey?: string; name?: string; endpoint?: string } | undefined
+    try {
+      data = JSON.parse(pendingRaw)
+    } catch {
+      return
+    }
+
+    if (!data?.apiKey) return
+    const newKey = String(data.apiKey).trim()
+    localStorage.removeItem('mowan_pending_import_provider')
+
+    setKeyDraft(newKey)
+
+    void (async () => {
+      setVerifyingKey(true)
+      setKeyVerification(undefined)
+      try {
+        const res = await runKeyVerification(newKey)
+        if (res.ok) {
+          setKeyVerification({ status: 'valid' })
+          await api.credentials.set({ ref: keyRef, value: newKey })
+          void api.credentials.describe({ refs: [keyRef] }).then(
+            (response) => {
+              if (response.result.ok) setKeyState(response.result.value.credentials[keyRef])
+            },
+            () => undefined,
+          )
+          showImportSuccessToast('✅ 密钥导入成功，且检测有效！')
+        } else {
+          setKeyVerification({
+            status: 'invalid',
+            ...res.message !== undefined ? { message: res.message } : {},
+          })
+          showImportSuccessToast(`⚠️ 密钥导入成功，检测提示: ${res.message || '请确认'}`, true)
+        }
+      } catch (error) {
+        setKeyVerification({ status: 'invalid', message: messageOf(error) })
+        showImportSuccessToast('⚠️ 密钥已填入，检测时发生网络异常', true)
+      } finally {
+        setVerifyingKey(false)
+      }
+    })()
+  }, [layout, keyRef, api.credentials, probeBaseURL])
 
   /**
    * The write for this card, or a failure message. Every edit travels as

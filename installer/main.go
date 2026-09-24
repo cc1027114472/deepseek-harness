@@ -703,7 +703,9 @@ func main() {
 			if ui != nil {
 				ui.Close()
 			}
-			showMessage("安装错误", "未能找到安装数据包 (payload.zip)。\n请确保安装程序完整无损。", 0x10)
+			if !isSilent {
+				showMessage("安装错误", "未能找到安装数据包 (payload.zip)。\n请确保安装程序完整无损。", 0x10)
+			}
 			return
 		}
 	}
@@ -714,7 +716,9 @@ func main() {
 		if ui != nil {
 			ui.Close()
 		}
-		showMessage("安装错误", "无法创建安装目录: "+err.Error(), 0x10)
+		if !isSilent {
+			showMessage("安装错误", "无法创建安装目录: "+err.Error(), 0x10)
+		}
 		return
 	}
 
