@@ -49,7 +49,11 @@ $payloadZip = "$distDir\payload.zip"
 if (Test-Path $payloadZip) { Remove-Item -Force $payloadZip }
 
 Push-Location $flatDir
-if (Get-Command 7z -ErrorAction SilentlyContinue) {
+$scoop7z = "$env:USERPROFILE\scoop\shims\7z.exe"
+if (Test-Path $scoop7z) {
+    Write-Host "Compressing payload with 7-Zip (fast multi-threaded)..." -ForegroundColor Cyan
+    & $scoop7z a -tzip -mx=1 -mmt=on -y -bso0 -bsp0 $payloadZip .
+} elseif (Get-Command 7z -ErrorAction SilentlyContinue) {
     & 7z a -tzip -mx=1 -mmt=on -y -bso0 -bsp0 $payloadZip .
 } else {
     tar.exe -c -a -f $payloadZip *
@@ -60,23 +64,35 @@ $zipSizeMB = [math]::Round((Get-Item $payloadZip).Length / 1MB, 2)
 Write-Host "✓ Payload archive created: $payloadZip ($zipSizeMB MB)" -ForegroundColor Green
 
 # 5. Assemble SFX Setup.exe
-Write-Host "`n[5/5] Assembling standalone Mowan-Agent-Setup.exe..." -ForegroundColor Yellow
+Write-Host "`n[5/5] Assembling standalone Setup.exe..." -ForegroundColor Yellow
 $setupExe = "$distDir\Mowan-Agent-Setup.exe"
+$harnessSetupExe = "$distDir\Mowan-Harness-Setup.exe"
 if (Test-Path $setupExe) { Remove-Item -Force $setupExe }
+if (Test-Path $harnessSetupExe) { Remove-Item -Force $harnessSetupExe }
 
 cmd /c "copy /b `"$root\installer\installer-base.exe`" + `"$payloadZip`" `"$setupExe`"" | Out-Null
+Copy-Item $setupExe $harnessSetupExe -Force
 Remove-Item -Force $payloadZip
 
 $desktop = [Environment]::GetFolderPath("Desktop")
 Copy-Item $setupExe "$desktop\Mowan-Agent-Setup.exe" -Force
+Copy-Item $harnessSetupExe "$desktop\Mowan-Harness-Setup.exe" -Force
+
 New-Item -ItemType Directory -Force -Path "$root\apps\web\dist" | Out-Null
 Copy-Item $setupExe "$root\apps\web\dist\Mowan-Agent-Setup.exe" -Force
+Copy-Item $harnessSetupExe "$root\apps\web\dist\Mowan-Harness-Setup.exe" -Force
+
+$sub2apiDownloads = "D:\GOWorks\fanzhongli\sub2api\frontend\public\downloads"
+if (Test-Path $sub2apiDownloads) {
+    Copy-Item $harnessSetupExe "$sub2apiDownloads\Mowan-Harness-Setup.exe" -Force
+    Write-Host "✓ Synced to sub2api: $sub2apiDownloads\Mowan-Harness-Setup.exe" -ForegroundColor Green
+}
 
 $setupSizeMB = [math]::Round((Get-Item $setupExe).Length / 1MB, 2)
 Write-Host "`n======================================================" -ForegroundColor Green
 Write-Host "🎉 Standalone Setup Installer Created Successfully!" -ForegroundColor Green
-Write-Host "Output:  $setupExe" -ForegroundColor Green
-Write-Host "Desktop: $desktop\Mowan-Agent-Setup.exe" -ForegroundColor Green
+Write-Host "Output:  $harnessSetupExe" -ForegroundColor Green
+Write-Host "Desktop: $desktop\Mowan-Harness-Setup.exe" -ForegroundColor Green
 Write-Host "Size:    $setupSizeMB MB" -ForegroundColor Green
 Write-Host "======================================================" -ForegroundColor Green
 
