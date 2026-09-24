@@ -108,7 +108,7 @@ Start-Process -WindowStyle Hidden powershell.exe -ArgumentList @(
 ) | Out-Null
 
 try {
-  & $node --import tsx/esm apps/cli/src/bin.ts web --host 0.0.0.0
+  & $node --import tsx/esm apps/cli/src/bin.ts web --host 0.0.0.0 --no-open
   $code = $LASTEXITCODE
 } catch {
   Write-Log ("ERROR: {0}" -f $_.Exception.Message)
