@@ -82,6 +82,7 @@ export type {
   ResolvedPiAiProviderProfile,
 } from './config.ts'
 export { recordKeyFor, authContextFrom, credentialStoreFrom } from './auth.ts'
+export { discoverModels } from './discovery.ts'
 export { supportedProtocols } from './provider.ts'
 
 export const name = 'llm-pi-ai'

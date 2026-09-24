@@ -17,6 +17,7 @@ import {
   PiAiAdapter,
   authContextFrom,
   credentialStoreFrom,
+  discoverModels,
   resolveProfiles,
   type PiAiModelProfile,
   type PiAiProviderProfile,
@@ -144,6 +145,22 @@ export function apply(ctx: Context, config: MowanConfig): void {
   ctx.llm.registerConfigurableProviders([
     { provider: PROVIDER, displayName: '魔丸', settingsNs: NS, settingsPath: [] },
   ])
+
+  ctx.llm.registerModelDiscovery(NS, async (request) => {
+    const conf = options()
+    const baseURL = request.baseURL ?? conf.baseURL ?? PUBLIC_BASE_URL
+    const api = request.api ?? 'google-generative-ai'
+    return discoverModels(
+      { ...request, baseURL, api },
+      async () => {
+        try {
+          return await resolveApiKey(PROVIDER, profiles().get(PROVIDER)!)
+        } catch {
+          return undefined
+        }
+      },
+    )
+  })
 
   let registration: AdapterRegistrationHandle | undefined
   let registeredFacts: unknown

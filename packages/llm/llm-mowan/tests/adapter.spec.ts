@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createServer } from 'node:http'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -160,5 +161,44 @@ describe('llm-mowan', () => {
 
     await ctx.fiber.dispose()
     await rm(dir, { recursive: true, force: true })
+  })
+
+  it('discovers models via ctx.llm.discoverModels with given apiKey', async () => {
+    const server = createServer((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          data: [
+            { id: 'mowan-test-model', name: 'Mowan Test Model', context_window: 128000, max_tokens: 8192 },
+          ],
+        }),
+      )
+    })
+    await new Promise<void>(resolve => server.listen(0, resolve))
+    const address = server.address()
+    const port = typeof address === 'object' && address !== null ? address.port : 0
+    const baseURL = `http://127.0.0.1:${port}`
+
+    try {
+      const ctx = new Context()
+      await ctx.plugin(LlmRuntime)
+      await ctx.plugin(LlmMowan, {})
+
+      const models = await ctx.llm.discoverModels('llm-mowan', {
+        baseURL,
+        apiKey: 'test-key',
+      })
+
+      expect(models).toEqual([
+        {
+          id: 'mowan-test-model',
+          name: 'Mowan Test Model',
+          contextWindow: 128000,
+          maxTokens: 8192,
+        },
+      ])
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()))
+    }
   })
 })
