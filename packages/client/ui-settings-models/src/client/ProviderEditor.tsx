@@ -349,7 +349,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
             },
             () => undefined,
           )
-          showImportSuccessToast('✅ 密钥导入成功，且检测有效！')
+          showImportSuccessToast('✅ 密钥导入成功，检测有效，已自动保存！')
+          setTimeout(() => {
+            props.onClose(true)
+          }, 1200)
         } else {
           setKeyVerification({
             status: 'invalid',
