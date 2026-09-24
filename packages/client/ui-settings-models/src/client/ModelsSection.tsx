@@ -12,7 +12,7 @@
  * re-renders from pushed invalidations or the post-apply reload.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
 import { Button, IconPlusOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -195,6 +195,19 @@ function Loaded({ injected }: { injected: ModelsSectionFace }): ReactNode {
   const [savedTarget, setSavedTarget] = useState<ProviderIdentity | undefined>(undefined)
   const [declaring, setDeclaring] = useState(false)
   const [dismissedSetup, setDismissedSetup] = useState<ReadonlySet<string>>(() => new Set())
+
+  // 自动触发「编辑」展开卡片以承接来自 Sub2API 的外部下发
+  useEffect(() => {
+    if (editing !== undefined) return
+    const pendingRaw = localStorage.getItem('mowan_pending_import_provider')
+    if (!pendingRaw) return
+    if (state.rows.length === 0) return
+
+    const mowanRow = state.rows.find(row => row.entry.provider === 'mowan') || state.rows[0]
+    if (mowanRow) {
+      setEditing(targetOf(mowanRow))
+    }
+  }, [editing, state.rows])
 
   const announceSaved = (target: ProviderIdentity): void => {
     // Announced only once the refreshed directory is in the snapshot the
