@@ -15,6 +15,9 @@ fs.copyFileSync('pnpm-workspace.yaml', path.join(outDir, 'pnpm-workspace.yaml'))
 if (fs.existsSync('Mowan-Agent.exe')) {
   fs.copyFileSync('Mowan-Agent.exe', path.join(outDir, 'Mowan-Agent.exe'));
 }
+if (fs.existsSync('Uninstall.exe')) {
+  fs.copyFileSync('Uninstall.exe', path.join(outDir, 'Uninstall.exe'));
+}
 
 const runtimeOut = path.join(outDir, 'runtime');
 fs.mkdirSync(runtimeOut, { recursive: true });

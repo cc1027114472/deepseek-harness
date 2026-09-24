@@ -256,9 +256,38 @@ func createAllShortcuts(installDir string) error {
 		_ = os.MkdirAll(progDir, 0755)
 		progLnk := filepath.Join(progDir, "魔丸.lnk")
 		_ = createNativeShortcut(progLnk, appExe, installDir, iconTarget, "魔丸 AI 智能助手 (Mowan Agent)")
+
+		uninstExe := filepath.Join(installDir, "Uninstall.exe")
+		if _, err := os.Stat(uninstExe); err == nil {
+			uninstLnk := filepath.Join(progDir, "卸载魔丸.lnk")
+			_ = createNativeShortcut(uninstLnk, uninstExe, installDir, iconTarget, "卸载 魔丸 AI 智能助手")
+		}
 	}
 
 	return nil
+}
+
+func registerUninstall(installDir string) {
+	uninstExe := filepath.Join(installDir, "Uninstall.exe")
+	icoPath := filepath.Join(installDir, "mowan.ico")
+	baseKey := `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Mowan-Agent`
+
+	regAdd := func(name, valType, data string) {
+		cmd := exec.Command("reg", "add", baseKey, "/v", name, "/t", valType, "/d", data, "/f")
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+		_ = cmd.Run()
+	}
+
+	regAdd("DisplayName", "REG_SZ", "魔丸 AI 智能助手 (Mowan Agent)")
+	regAdd("DisplayVersion", "REG_SZ", "1.0.0")
+	regAdd("Publisher", "REG_SZ", "魔丸团队")
+	regAdd("DisplayIcon", "REG_SZ", icoPath)
+	regAdd("UninstallString", "REG_SZ", fmt.Sprintf(`"%s"`, uninstExe))
+	regAdd("QuietUninstallString", "REG_SZ", fmt.Sprintf(`"%s" -y`, uninstExe))
+	regAdd("InstallLocation", "REG_SZ", installDir)
+	regAdd("EstimatedSize", "REG_DWORD", "650000")
+	regAdd("NoModify", "REG_DWORD", "1")
+	regAdd("NoRepair", "REG_DWORD", "1")
 }
 
 type browseInfo struct {
@@ -838,6 +867,8 @@ func main() {
 	}
 	_ = createAllShortcuts(installDir)
 	logMsg("Shortcuts created")
+	registerUninstall(installDir)
+	logMsg("Uninstall registered in Windows Settings / Control Panel")
 
 	if ui != nil {
 		ui.SetProgress(100, "安装完毕！正在启动 魔丸...")

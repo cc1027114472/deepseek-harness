@@ -17,6 +17,13 @@ go build -ldflags="-H windowsgui -s -w" -o "$root\Mowan-Agent.exe" .
 Pop-Location
 Write-Host "✓ Launcher built: Mowan-Agent.exe" -ForegroundColor Green
 
+# 1b. Build uninstaller
+Push-Location "$root\uninstaller"
+$env:GOOS = "windows"; $env:GOARCH = "amd64"
+go build -ldflags="-H windowsgui -s -w" -o "$root\Uninstall.exe" .
+Pop-Location
+Write-Host "✓ Uninstaller built: Uninstall.exe" -ForegroundColor Green
+
 # 2. Prepare embedded node runtime
 Write-Host "`n[2/5] Preparing embedded Node.js runtime..." -ForegroundColor Yellow
 New-Item -ItemType Directory -Force -Path "$root\runtime" | Out-Null
