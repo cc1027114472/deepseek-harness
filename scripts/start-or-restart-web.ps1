@@ -117,6 +117,8 @@ try {
 
 if ($code -ne 0) {
   Write-Log ("Failed with exit code {0}" -f $code)
-  Read-Host 'Press Enter to close'
+  if ([Environment]::UserInteractive) {
+    try { Read-Host 'Press Enter to close' } catch {}
+  }
 }
 exit $code
