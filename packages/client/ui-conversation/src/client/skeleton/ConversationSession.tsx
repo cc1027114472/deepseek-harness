@@ -7,6 +7,7 @@ import type {
   ConversationSessionHeaderSlotProps, ConversationSessionSlotProps,
 } from '../contract/slots.ts'
 import type { ViewTab } from '../contract/views.ts'
+import { GitBranchChip } from './GitBranchChip.tsx'
 import css from './ConversationRoot.module.css'
 
 /** Full props composed from the strict session body contract. */
@@ -64,7 +65,7 @@ function equalBreadcrumbs(left: readonly Breadcrumb[], right: readonly Breadcrum
  * @returns the hidden blank-session header or visible title and tabs.
  */
 export function ConversationSessionHeader({
-  sessionId, useSession, useSessions, useStore, actions,
+  sessionId, useSession, useSessions, useWorkspaces, useStore, actions,
   renderSlot, views, open, t,
 }: ConversationSessionHeaderProps) {
   useSyncExternalStore(views.subscribe, views.version)
@@ -74,6 +75,11 @@ export function ConversationSessionHeader({
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
   const composerPhase = useSession(s => s.composerPhase)
   const blank = useSession(s => s.blank)
+  const sessionCwd = useSessions(s => s.byId[sessionId]?.cwd)
+  const sessionWorkspacePath = useWorkspaces((w) => {
+    return w.items.find(item => item.sessionIds.includes(sessionId))?.path
+  })
+  const branchDir = sessionWorkspacePath ?? (sessionCwd && sessionCwd !== '' ? sessionCwd : undefined)
   const hideChrome = blank && composerPhase === 'blank'
 
   return (
@@ -136,6 +142,7 @@ export function ConversationSessionHeader({
               </nav>
               <div className={css.headerActions}>
                 {renderSlot('conversation.session.header.actions', {})}
+                <GitBranchChip cwd={branchDir} />
               </div>
             </div>
             <div className={css.headerUtilities}>

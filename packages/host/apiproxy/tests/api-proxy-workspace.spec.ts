@@ -156,6 +156,15 @@ describe('host.pickDirectory', () => {
       error: { code: 'directory-picker-unavailable', details: { capability: 'browse' } },
     })
   })
+
+  it('allows the native RPC under a browse composition when pick is present', async () => {
+    const { api } = await harness(undefined, {
+      ...BROWSE_STUB,
+      pick: async () => '/picked/from/browse',
+    })
+    const response = await api.host.pickDirectory(request({}), new AbortController().signal)
+    expect(response.result).toEqual({ ok: true, value: { path: '/picked/from/browse' } })
+  })
 })
 
 /** Canned browse capability: one listing, one created path, typed failures on demand. */

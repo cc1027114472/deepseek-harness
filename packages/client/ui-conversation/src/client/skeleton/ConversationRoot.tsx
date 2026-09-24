@@ -7,6 +7,7 @@ import clsx from 'clsx'
 import type { WorkspaceId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ConversationSlotProps, InputZone } from '../contract/slots.ts'
 import { HeroGlow, HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
+import { GitBranchChip } from './GitBranchChip.tsx'
 import css from './ConversationRoot.module.css'
 
 /** Full props composed from the slot contract. */
@@ -97,6 +98,10 @@ export function ConversationRoot({
           ? undefined
           : workspaceLabel(cwd)))
 
+  const targetDir = (pendingWorkspaceId ? workspaces.items.find(w => w.workspaceId === pendingWorkspaceId)?.path : undefined)
+    ?? sessionWorkspace?.path
+    ?? (cwd && cwd !== '' ? cwd : undefined)
+
   const heroWorkspaceRow = (
     <div className={css.heroWorkspaceRow}>
       <WorkspaceChip
@@ -120,6 +125,7 @@ export function ConversationRoot({
         onClose: () => { setPickerOpen(false) },
       })}
       {renderSlot('conversation.hero.agentPreset', {})}
+      <GitBranchChip cwd={targetDir} />
     </div>
   )
 

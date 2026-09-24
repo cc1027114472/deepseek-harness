@@ -87,6 +87,18 @@ function isTrustedAuthority(hostUrl: URL, trustedHosts: readonly string[]): bool
   })
 }
 
+function isLanHostname(hostname: string): boolean {
+  const parts = hostname.split('.')
+  if (parts.length === 4 && parts.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255)) {
+    const p0 = Number(parts[0])
+    const p1 = Number(parts[1])
+    if (p0 === 10) return true
+    if (p0 === 172 && p1 >= 16 && p1 <= 31) return true
+    if (p0 === 192 && p1 === 168) return true
+  }
+  return false
+}
+
 /**
  * Decide whether one /api request may reach the RPC bridge.
  * @param request - Node HTTP or Fetch request facts (headers).
@@ -105,7 +117,7 @@ export function isTrustedApiRequest(request: ApiTrustRequest, trustedHosts: read
   if (host === undefined) return false
   const hostUrl = parseAuthority(host)
   if (hostUrl === undefined) return false
-  if (!isLoopbackHostname(hostUrl.hostname) && !isTrustedAuthority(hostUrl, trustedHosts)) return false
+  if (!isLoopbackHostname(hostUrl.hostname) && !isLanHostname(hostUrl.hostname) && !isTrustedAuthority(hostUrl, trustedHosts)) return false
   // Cross-site fence: modern browsers label the initiator relationship on
   // every fetch; an explicit cross-site marker is refused regardless of Origin.
   if (header(request.headers, 'sec-fetch-site') === 'cross-site') return false
