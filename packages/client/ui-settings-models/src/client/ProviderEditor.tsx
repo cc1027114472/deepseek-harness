@@ -162,6 +162,10 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   const [keyState, setKeyState] = useState<CredentialView | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | undefined>(undefined)
+  const [verifyingKey, setVerifyingKey] = useState(false)
+  const [keyVerification, setKeyVerification] = useState<{ status: 'valid' | 'invalid'; message?: string } | undefined>(
+    undefined,
+  )
   // A settings success advances both retry baselines immediately. Keeping the
   // derived fields in the draft prevents a pushed namespace refresh from
   // turning them into deletions when the following credential write is retried.
@@ -245,6 +249,40 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     ...probeApi === undefined ? {} : { api: probeApi },
     ...keyValue.length === 0 ? {} : { apiKey: keyValue },
   }
+
+  const runKeyVerification = async (keyToTest?: string): Promise<{ ok: boolean; message?: string }> => {
+    const effectiveKey = keyToTest ?? (keyValue.length > 0 ? keyValue : undefined)
+    const effectiveBaseURL = probeBaseURL ?? MOWAN_PUBLIC_BASE_URL
+    const response = await api.llm.discoverModels({
+      settingsNs: 'llm-mowan',
+      provider: 'mowan',
+      baseURL: effectiveBaseURL,
+      api: 'google-generative-ai',
+      ...effectiveKey === undefined ? {} : { apiKey: effectiveKey },
+    })
+    if (response.result.ok) {
+      return { ok: true }
+    }
+    return { ok: false, message: response.result.error.message }
+  }
+
+  const handleVerifyKey = async (): Promise<void> => {
+    setVerifyingKey(true)
+    setKeyVerification(undefined)
+    try {
+      const res = await runKeyVerification()
+      if (res.ok) {
+        setKeyVerification({ status: 'valid' })
+      } else {
+        setKeyVerification({ status: 'invalid', message: res.message })
+      }
+    } catch (error) {
+      setKeyVerification({ status: 'invalid', message: messageOf(error) })
+    } finally {
+      setVerifyingKey(false)
+    }
+  }
+
   /**
    * The write for this card, or a failure message. Every edit travels as
    * path ops against the STORED section: the draft comes from the redacted
@@ -252,6 +290,15 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
    * outside the card. Ops name only the fields this card can see.
    */
   const applyOnce = async (): Promise<string | undefined> => {
+    if (layout === 'mowan' && keyValue.length > 0) {
+      const verification = await runKeyVerification(keyValue)
+      if (!verification.ok) {
+        const errorMsg = verification.message ?? t('keyInvalid')
+        setKeyVerification({ status: 'invalid', message: errorMsg })
+        return `${t('keyInvalid')}: ${errorMsg}`
+      }
+      setKeyVerification({ status: 'valid' })
+    }
     const ns = namespace.ns
     // A pi-ai profile names the conventional reference only when this page is
     // about to store a key. Otherwise the provider keeps its native auth path.
@@ -376,10 +423,22 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     }
 
     if (family === 'mowan') {
+      const canVerify = keyValue.length > 0 || keyState?.configured === true
       return (
         <>
           <div className={styles['field']}>
-            <span className={styles['fieldLabel']}>{t('keyInput')}</span>
+            <div className={styles['fieldHead']}>
+              <span className={styles['fieldLabel']}>{t('keyInput')}</span>
+              <button
+                type="button"
+                className={styles['linkButton']}
+                disabled={disabled || verifyingKey || !canVerify}
+                title={canVerify ? undefined : t('verifyKeyFirst')}
+                onClick={() => { void handleVerifyKey() }}
+              >
+                {verifyingKey ? t('verifyingKey') : t('verifyKey')}
+              </button>
+            </div>
             <input
               className={styles['input']}
               type="password"
@@ -387,13 +446,35 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
               value={keyDraft}
               placeholder={keyPlaceholder}
               aria-label={t('keyInput')}
-              aria-invalid={shownKeyFailure !== undefined}
+              aria-invalid={shownKeyFailure !== undefined || keyVerification?.status === 'invalid'}
               required={props.credentialRequired === true}
               autoFocus={props.autoFocusCredential === true}
               disabled={disabled || keyLocked}
-              onChange={(event) => { setKeyDraft(event.target.value) }}
+              onChange={(event) => {
+                setKeyDraft(event.target.value)
+                setKeyVerification(undefined)
+              }}
             />
-            {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
+            {shownKeyFailure !== undefined
+              ? <p className={styles['error']}>{t(shownKeyFailure)}</p>
+              : keyVerification?.status === 'valid'
+                ? (
+                  <p className={styles['keyValidNotice']}>
+                    <span
+                      className={`${styles['credentialDot']} ${styles['credentialDotConfigured']}`}
+                      role="img"
+                      aria-label={t('keyValid')}
+                    />
+                    {t('keyValid')}
+                  </p>
+                )
+                : keyVerification?.status === 'invalid'
+                  ? (
+                    <p className={styles['error']}>
+                      {keyVerification.message ? `${t('keyInvalid')}: ${keyVerification.message}` : t('keyInvalid')}
+                    </p>
+                  )
+                  : null}
           </div>
           {props.credentialOnly === true ? null : (
             <>

@@ -161,6 +161,7 @@ function scriptedFace(overrides: {
         ],
       }))),
       models: vi.fn(() => Promise.resolve(ok({ groups: [], failures: [] }))),
+      discoverModels: vi.fn(() => Promise.resolve(ok([]))),
     },
     settings: {
       describe: vi.fn(() => Promise.resolve(ok({ writable: true, hasDocument: false, namespaces: wireNamespaces() }))),
@@ -912,6 +913,61 @@ describe('ModelsSection', () => {
 
     // Verify sync models button
     expect(screen.getByRole('button', { name: en.syncModels })).toBeDefined()
+  })
+
+  it('verifies mowan API key on demand and on save', async () => {
+    const { face } = scriptedFace()
+    face.llm.discoverModels = vi.fn((request: { apiKey?: string }) => {
+      if (request.apiKey === 'valid-key') return Promise.resolve(ok([]))
+      return Promise.resolve(fail({ code: 'model-discovery-failed', message: '401 Unauthorized' }))
+    })
+    const bare: SettingsNamespaceView = {
+      ns: 'llm-mowan',
+      schema: JSON.parse(JSON.stringify(DeepSeekConfig.toJSON())) as unknown,
+      value: {},
+      applies: 'live',
+      secrets: [],
+      revision: 0,
+    }
+    const { ProviderEditor } = await import('../src/client/ProviderEditor.tsx')
+    render(<ProviderEditor
+      provider="mowan"
+      displayName="魔丸"
+      namespace={bare}
+      schema={settingsSchema}
+      settingsPath={[]}
+      api={face as never}
+      t={t}
+      readOnly={false}
+      onClose={() => {}}
+    />)
+
+    // Verify button is initially disabled without a key
+    const verifyBtn = screen.getByRole('button', { name: en.verifyKey })
+    expect(verifyBtn).toBeDefined()
+    expect((verifyBtn as HTMLButtonElement).disabled).toBe(true)
+
+    // Typing a valid key enables verify button
+    const keyInput = screen.getByLabelText(en.keyInput)
+    fireEvent.change(keyInput, { target: { value: 'valid-key' } })
+    expect((verifyBtn as HTMLButtonElement).disabled).toBe(false)
+
+    // Click verify -> shows Key is valid
+    fireEvent.click(verifyBtn)
+    await screen.findByText(en.keyValid)
+
+    // Typing an invalid key clears notice
+    fireEvent.change(keyInput, { target: { value: 'bad-key' } })
+    expect(screen.queryByText(en.keyValid)).toBeNull()
+
+    // Click verify -> shows error
+    fireEvent.click(verifyBtn)
+    await screen.findByText(new RegExp(en.keyInvalid))
+
+    // Attempting to save with invalid key blocks apply
+    fireEvent.click(screen.getByText(en.apply))
+    await screen.findByText(new RegExp(en.keyInvalid))
+    expect(face.credentials.set).not.toHaveBeenCalled()
   })
 
   it('rejects an invalid draft before writing', async () => {
