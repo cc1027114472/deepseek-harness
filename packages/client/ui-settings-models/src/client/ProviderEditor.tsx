@@ -36,10 +36,13 @@ import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
 /** Per-adapter-family curated field sets (unknown namespaces get the hint alone). */
-type EditorLayout = 'deepseek' | 'pi-ai' | 'unknown'
+type EditorLayout = 'deepseek' | 'pi-ai' | 'mowan' | 'unknown'
 
 /** The public DeepSeek endpoint shown as the deepseek base-URL placeholder. */
 const DEEPSEEK_PUBLIC_BASE_URL = 'https://api.deepseek.com'
+
+/** The public Mowan endpoint shown as the mowan base-URL placeholder. */
+const MOWAN_PUBLIC_BASE_URL = 'https://ukapi.cc/v1beta'
 
 /** Props of {@link ProviderEditor}. */
 export interface ProviderEditorProps {
@@ -127,6 +130,7 @@ export function pathOps(
 
 /** The editor layout the owning namespace selects. */
 function layoutOf(ns: string): EditorLayout {
+  if (ns === 'llm-mowan') return 'mowan'
   if (ns === 'llm-deepseek') return 'deepseek'
   if (ns === 'llm-pi-ai') return 'pi-ai'
   return 'unknown'
@@ -325,8 +329,6 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
 
   const keyLocked = keyState?.writable === false
 
-  const isMowan = props.provider === 'aaaa' || props.displayName === '魔丸' || props.displayName === 'aaaa'
-
   /**
    * The catalog beneath the user layer: what the composition entry pinned, or
    * else the schema default that `resolve` would supply. The effective value
@@ -344,7 +346,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
    * narrowed so the per-family branches below are total: an unknown namespace
    * renders the hint instead and never reaches this body.
    */
-  const curatedFields = (family: 'deepseek' | 'pi-ai'): ReactNode => {
+  const curatedFields = (family: 'deepseek' | 'pi-ai' | 'mowan'): ReactNode => {
     // What a hand-declared route names for itself and nothing else can supply.
     // A whole-section `llm-deepseek` profile is a composition fact with no
     // per-route identity for its schema to carry, hence the family test.
@@ -410,9 +412,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
                     // the answer the route id. Reading the effective value
                     // instead would echo the stored override back as the
                     // thing clearing restores.
-                    placeholder={isMowan
-                      ? '魔丸'
-                      : (stringAt(schema.getPath(namespace.base, settingsPath), 'displayName') ?? props.provider)}
+                    placeholder={stringAt(schema.getPath(namespace.base, settingsPath), 'displayName') ?? props.provider}
                     aria-label={t('customDisplayName')}
                     disabled={disabled}
                     onChange={(event) => { setField('displayName', event.target.value) }}
@@ -425,21 +425,22 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
               <input
                 className={styles['input']}
                 type="text"
-                value={isMowan ? 'https://ukapi.cc/v1beta' : (stringAt(draft, 'baseURL') ?? '')}
-                placeholder={family === 'deepseek'
-                  ? DEEPSEEK_PUBLIC_BASE_URL
-                  : stringAt(fallback, 'baseURL') ?? t('baseUrlDefault')}
+                value={stringAt(draft, 'baseURL') ?? ''}
+                placeholder={family === 'mowan'
+                  ? MOWAN_PUBLIC_BASE_URL
+                  : family === 'deepseek'
+                    ? DEEPSEEK_PUBLIC_BASE_URL
+                    : stringAt(fallback, 'baseURL') ?? t('baseUrlDefault')}
                 aria-label={t('baseUrl')}
-                disabled={disabled || isMowan}
+                disabled={disabled}
                 onChange={(event) => {
-                  if (isMowan) return
                   setField('baseURL', event.target.value === '' ? undefined : event.target.value)
                 }}
               />
             </div>
             {/* The protocol sits beside the endpoint it describes, as it does
                 on the create card. */}
-            {ownsIdentity && !isMowan
+            {ownsIdentity
               ? (
                 <div className={styles['field']}>
                   <span className={styles['fieldLabel']}>{t('customApi')}</span>
@@ -467,7 +468,7 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
             {/* Both families edit the same rows through the same contract; only
                 the extras differ — DeepSeek's inherited capacities, pi-ai's
                 endpoint interrogation. */}
-            {family === 'deepseek'
+            {family === 'deepseek' || family === 'mowan'
               ? (
                 <DeepSeekModelsEditor
                   {...catalogProps}
@@ -490,8 +491,8 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
         ? null
         : (
           <div className={styles['editorHeader']}>
-            <span className={styles['editorTitle']}>{isMowan ? '魔丸' : props.displayName}</span>
-            {!isMowan && props.provider !== props.displayName
+            <span className={styles['editorTitle']}>{props.displayName}</span>
+            {props.provider !== props.displayName
               ? <span className={styles['editorRoute']}>{props.provider}</span>
               : null}
           </div>
