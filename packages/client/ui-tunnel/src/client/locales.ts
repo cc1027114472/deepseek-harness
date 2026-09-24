@@ -6,7 +6,7 @@
 export const zh = {
   nav: '远程访问',
   title: '远程与公网穿透',
-  description: '通过 Cloudflare Tunnel 快速将本地 DeepSeek Harness 映射至公网，支持手机、平板等外网设备操控，内置访问口令双重防护。',
+  description: '通过 Cloudflare Tunnel 快速将本地魔丸映射至公网，支持手机、平板等外网设备操控，内置访问口令双重防护。',
   statusLabel: '运行状态',
   statusRunning: '运行中',
   statusStopped: '已停止',
@@ -31,7 +31,7 @@ export const zh = {
 export const en = {
   nav: 'Remote Access',
   title: 'Remote & Public Tunnel',
-  description: 'Expose local DeepSeek Harness via Cloudflare Tunnel to access and control from mobile phones or remote devices with token authentication.',
+  description: 'Expose local Mowan via Cloudflare Tunnel to access and control from mobile phones or remote devices with token authentication.',
   statusLabel: 'Status',
   statusRunning: 'Running',
   statusStopped: 'Stopped',
