@@ -63,6 +63,12 @@ export interface DirectoryListing {
 export interface DirectoryPickerBrowseCapability {
   kind: 'browse'
   /**
+   * Optional host OS single-directory chooser when the host display is reachable.
+   * @param signal - caller/connection lifetime; abort terminates the chooser.
+   * @returns the chosen absolute path, or null when the operator cancels.
+   */
+  pick?: (signal: AbortSignal) => Promise<string | null>
+  /**
    * List one directory level.
    * @param path - absolute directory to list; absent lists the home directory.
    * @param signal - caller lifetime; abort stops the scan (a stalled network

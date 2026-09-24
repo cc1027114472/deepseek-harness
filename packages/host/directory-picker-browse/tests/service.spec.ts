@@ -228,4 +228,8 @@ describe('BrowseDirectoryPicker', () => {
     const missingParent = await capability.createDirectory(join(root, 'no-such-dir'), 'child').catch((error: unknown) => error)
     expect((missingParent as DirectoryPickerError).code).toBe('directory-create-failed')
   })
+
+  it('exposes pick method for native picking', () => {
+    expect(typeof capability.pick).toBe('function')
+  })
 })

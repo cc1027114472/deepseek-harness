@@ -15,6 +15,9 @@
       "path": "../directory-picker"
     },
     {
+      "path": "../directory-picker-native"
+    },
+    {
       "path": "../../runtime-diagnostics/invariants"
     }
   ]

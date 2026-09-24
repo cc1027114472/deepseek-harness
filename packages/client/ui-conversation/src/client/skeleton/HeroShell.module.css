@@ -204,3 +204,48 @@
   line-height: 18px;
   color: var(--dsw-alias-state-error-primary);
 }
+
+.gitBranchChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: min(100%, 200px);
+  min-height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--ds-transition-duration-fast) var(--ds-ease-in-out),
+              color var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.gitBranchChip:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.branchIcon {
+  flex: none;
+  color: var(--dsw-alias-label-secondary);
+  transition: color var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.gitBranchChip:hover .branchIcon {
+  color: var(--dsw-alias-label-primary);
+}
+
+.branchLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gitBranchLoading {
+  opacity: 0.6;
+}

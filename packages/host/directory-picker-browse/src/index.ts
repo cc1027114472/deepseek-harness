@@ -2,10 +2,11 @@
  * Browse backend of the directory-picker seam: registers `ctx.directoryPicker`
  * with the `browse` capability — one-level directory listing and child-directory
  * creation over the host filesystem via Node's stdlib (which already carries
- * the per-OS adaptation). Nothing renders on the host display, so this backend
- * serves remote clients the dialog backend cannot. Policy decisions (hidden
- * entries flagged but returned, symlinks followed, whole-filesystem scope) are
- * recorded in the directory-picker seam Agent Note.
+ * the per-OS adaptation), plus delegated native directory picking via
+ * `pickNativeDirectory`. Nothing renders on the host display for listing, so
+ * this backend serves remote clients while also supporting native dialog picking
+ * on display hosts. Policy decisions (hidden entries flagged but returned, symlinks
+ * followed, whole-filesystem scope) are recorded in the directory-picker seam Agent Note.
  * @module @deepseek-ai/dsh-host-directory-picker-browse
  */
 
@@ -20,6 +21,7 @@ import {
 import type {
   DirectoryEntry, DirectoryListing, DirectoryPickerCapability,
 } from '@deepseek-ai/dsh-host-directory-picker'
+import { pickNativeDirectory } from '@deepseek-ai/dsh-host-directory-picker-native'
 
 /**
  * Ancestor chain from the filesystem root to `target` inclusive — the
@@ -198,6 +200,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
 
   private readonly browseCapability: DirectoryPickerCapability = {
     kind: 'browse',
+    pick: signal => pickNativeDirectory(signal),
     list: (path, signal) => this.list(path, signal),
     createDirectory: (path, name) => this.createDirectory(path, name),
   }

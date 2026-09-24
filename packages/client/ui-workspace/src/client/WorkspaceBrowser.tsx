@@ -9,10 +9,10 @@
  * menu in between; the flow and its error dialog live in WorkspacePicker
  * (same package — direct composition, no slot between them).
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  Button, IconCloseFill14, IconPersonalizationOutline16,
+  Button, IconBrowseOutline16, IconCloseFill14, IconPersonalizationOutline16,
   IconProjectAddOutline16, IconSearchOutline16, Menu, Modal, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
@@ -774,6 +774,7 @@ export function WorkspaceBrowser({
   unarchiveSession,
   insertSessionBefore,
   createWorkspace,
+  pickDirectory,
   searchSessions,
   searchResultLimit,
   useDirectoryFlow,
@@ -845,6 +846,24 @@ export function WorkspaceBrowser({
   const [wsPickerOpen, setWsPickerOpen] = useState(false)
   const wsPlusRef = useRef<HTMLButtonElement>(null)
   const composingRef = useRef(false)
+  const [nativeBusy, setNativeBusy] = useState(false)
+  const [nativeError, setNativeError] = useState<string | null>(null)
+
+  const handleNativePick = useCallback(async () => {
+    if (pickDirectory === undefined || nativeBusy) return
+    setNativeBusy(true)
+    try {
+      const path = await pickDirectory()
+      if (path !== null && path !== undefined && path.trim() !== '') {
+        const workspace = await createWorkspace({ path })
+        startSession(workspace.workspaceId)
+      }
+    } catch (reason: unknown) {
+      setNativeError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setNativeBusy(false)
+    }
+  }, [pickDirectory, nativeBusy, createWorkspace, startSession])
 
   // Rail search = expand + land in the search box: the flag arms before the
   // expand request; once the shell flips wide the input mounts and takes focus.
@@ -1125,19 +1144,31 @@ export function WorkspaceBrowser({
               t={t}
             />
           )}
-          {/* Adding is the button's one action, so a composition with no
-              picking affordance has nothing to offer here: the region hides the
-              button rather than leaving a dead one in the header. */}
+          {/* In-app web modal directory browser */}
           {directoryFlowAvailable && (
-            <Tooltip label={t('workspace.add')} side="bottom" delayMs={500}>
+            <Tooltip label={t('workspace.addBrowse')} side="bottom" delayMs={500}>
               <button
                 ref={wsPlusRef}
                 type="button"
                 className={css.iconButton}
-                aria-label={t('workspace.add')}
+                aria-label={t('workspace.addBrowse')}
                 onClick={() => {
                   setWsPickerOpen(v => !v)
                 }}
+              >
+                <IconBrowseOutline16 size={wide ? 16 : 18} />
+              </button>
+            </Tooltip>
+          )}
+          {/* Native OS directory picker dialog */}
+          {pickDirectory !== undefined && (
+            <Tooltip label={t('workspace.addNative')} side="bottom" delayMs={500}>
+              <button
+                type="button"
+                className={css.iconButton}
+                aria-label={t('workspace.addNative')}
+                disabled={nativeBusy}
+                onClick={handleNativePick}
               >
                 <IconProjectAddOutline16 size={wide ? 16 : 18} />
               </button>
@@ -1340,6 +1371,20 @@ export function WorkspaceBrowser({
       >
         {deleting && <div className={css.deleteStatus} role="status">{t('delete.pending')}</div>}
         {deleteError !== null && <div className={css.renameError} role="alert">{deleteError}</div>}
+      </Modal>
+      <Modal
+        open={nativeError !== null}
+        onClose={() => { setNativeError(null) }}
+        closeLabel={t('close')}
+        title={t('folderError.title')}
+        footer={(
+          <>
+            <Button variant="outline" onClick={() => { setNativeError(null) }}>{t('cancel')}</Button>
+            <Button variant="primary" onClick={() => { setNativeError(null); void handleNativePick() }}>{t('folderError.retry')}</Button>
+          </>
+        )}
+      >
+        {nativeError !== null && <div className={css.renameError} role="alert">{nativeError}</div>}
       </Modal>
     </div>
   )

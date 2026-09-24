@@ -816,7 +816,7 @@ describe('WorkspaceBrowser', () => {
   it('rail add-workspace raises the directory flow in place, with no menu and no expansion', () => {
     const expandSidebar = vi.fn()
     mount({ wide: false, expandSidebar, useWorkspaces: hook(workspaceState([workspace('alpha', [])])) })
-    fireEvent.click(screen.getByRole('button', { name: '添加工作区' }))
+    fireEvent.click(screen.getByRole('button', { name: '网页选择目录' }))
     expect(expandSidebar).not.toHaveBeenCalled()
     // Adding is the header's only action, so the gesture IS that action: no
     // one-row popover, and existing workspaces stay in the tree below.
@@ -831,8 +831,21 @@ describe('WorkspaceBrowser', () => {
       useDirectoryFlow: bindSnapshotSelector({ getSnapshot: () => false, subscribe: () => () => {} }),
     })
     // Nothing to add with, so the header offers no dead button.
-    expect(screen.queryByRole('button', { name: '添加工作区' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '网页选择目录' })).toBeNull()
     expect(screen.getByText('alpha')).toBeTruthy()
+  })
+
+  it('native button picks directory and creates workspace when clicked', async () => {
+    const pickDirectory = vi.fn(async () => '/path/to/picked')
+    const createWorkspace = vi.fn(async () => workspace('picked-ws', []))
+    const startSession = vi.fn()
+    mount({ pickDirectory, createWorkspace, startSession })
+    fireEvent.click(screen.getByRole('button', { name: '系统窗口选择' }))
+    expect(pickDirectory).toHaveBeenCalled()
+    await vi.waitFor(() => {
+      expect(createWorkspace).toHaveBeenCalledWith({ path: '/path/to/picked' })
+      expect(startSession).toHaveBeenCalledWith('picked-ws')
+    })
   })
 
   it('uses the full expanded Workspace section when resolving a Workspace drop half', () => {

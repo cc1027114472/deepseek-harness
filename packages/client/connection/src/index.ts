@@ -10,6 +10,7 @@ import { bridge, DEFAULT_MAX_REQUEST_BODY_BYTES } from './http-bridge.ts'
 import { assertTrustedAuthority, isTrustedApiRequest } from './api-request-trust.ts'
 import { HostConnectionService } from './rpc-host.ts'
 import { rejectWebSocketUpgrade, WebSocketDownlinks } from './websocket-downlink.ts'
+import { resolveGitBranch } from './git-branch.ts'
 
 export type {
   ConnectionRpcAuthority,
@@ -171,6 +172,27 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
     },
   }
   ctx.effect(() => ctx.webServer.register(route), 'client-connection: /api route')
+
+  const gitBranchRoute: WebRoute = {
+    kind: 'exact',
+    path: '/api/git-branch',
+    handler: (req, res) => {
+      if (!isTrustedApiRequest(req, trustedHosts)) {
+        res.writeHead(403)
+        res.end('forbidden')
+        return
+      }
+      const url = new URL(req.url ?? '/', 'http://dsh.internal')
+      const targetPath = url.searchParams.get('path') ?? undefined
+      const branch = resolveGitBranch(targetPath)
+      res.writeHead(200, {
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': 'no-cache, no-store',
+      })
+      res.end(JSON.stringify({ branch }))
+    },
+  }
+  ctx.effect(() => ctx.webServer.register(gitBranchRoute), 'client-connection: /api/git-branch route')
   ctx.inject(['apiProxy'], (apiCtx) => {
     assertImageBodyCapacity(apiCtx, maxRequestBodyBytes)
     const downlinks = new WebSocketDownlinks(apiCtx.apiProxy)
