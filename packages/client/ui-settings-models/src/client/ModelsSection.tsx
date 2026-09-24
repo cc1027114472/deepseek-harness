@@ -198,16 +198,23 @@ function Loaded({ injected }: { injected: ModelsSectionFace }): ReactNode {
 
   // 自动触发「编辑」展开卡片以承接来自 Sub2API 的外部下发
   useEffect(() => {
-    if (editing !== undefined) return
-    const pendingRaw = localStorage.getItem('mowan_pending_import_provider')
-    if (!pendingRaw) return
-    if (state.rows.length === 0) return
+    const handleCheckAndExpand = () => {
+      const pendingRaw = localStorage.getItem('mowan_pending_import_provider')
+      if (!pendingRaw) return
+      if (state.rows.length === 0) return
 
-    const mowanRow = state.rows.find(row => row.entry.provider === 'mowan') || state.rows[0]
-    if (mowanRow) {
-      setEditing(targetOf(mowanRow))
+      const mowanRow = state.rows.find(row => row.entry.provider === 'mowan') || state.rows[0]
+      if (mowanRow) {
+        setEditing(targetOf(mowanRow))
+      }
     }
-  }, [editing, state.rows])
+
+    handleCheckAndExpand()
+    window.addEventListener('dsh:open-settings', handleCheckAndExpand)
+    return () => {
+      window.removeEventListener('dsh:open-settings', handleCheckAndExpand)
+    }
+  }, [state.rows])
 
   const announceSaved = (target: ProviderIdentity): void => {
     // Announced only once the refreshed directory is in the snapshot the

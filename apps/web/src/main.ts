@@ -53,6 +53,7 @@ function handleMowanImportParams() {
       setTimeout(triggerOpenSettings, 200)
       setTimeout(triggerOpenSettings, 800)
       setTimeout(triggerOpenSettings, 1500)
+      setTimeout(triggerOpenSettings, 2500)
 
       // 清除敏感 URL query，保护 apiKey 不滞留地址栏
       const cleanUrl = window.location.pathname + '#/settings'
@@ -64,6 +65,9 @@ function handleMowanImportParams() {
 }
 
 handleMowanImportParams()
+if (typeof window !== 'undefined') {
+  window.addEventListener('hashchange', handleMowanImportParams)
+}
 
 import { AppWebEntry } from '@deepseek-ai/dsh-client-web'
 

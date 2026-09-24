@@ -319,54 +319,63 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   // 侦听来自 Sub2API 的自动下发密钥：自动填充、自动检测、自动保存
   useEffect(() => {
     if (layout !== 'mowan') return
-    const pendingRaw = localStorage.getItem('mowan_pending_import_provider')
-    if (!pendingRaw) return
 
-    let data: { apiKey?: string; name?: string; endpoint?: string } | undefined
-    try {
-      data = JSON.parse(pendingRaw)
-    } catch {
-      return
+    const handleImport = () => {
+      const pendingRaw = localStorage.getItem('mowan_pending_import_provider')
+      if (!pendingRaw) return
+
+      let data: { apiKey?: string; name?: string; endpoint?: string } | undefined
+      try {
+        data = JSON.parse(pendingRaw)
+      } catch {
+        return
+      }
+
+      if (!data?.apiKey) return
+      const newKey = String(data.apiKey).trim()
+      localStorage.removeItem('mowan_pending_import_provider')
+
+      setKeyDraft(newKey)
+
+      void (async () => {
+        setVerifyingKey(true)
+        setKeyVerification(undefined)
+        try {
+          const res = await runKeyVerification(newKey)
+          if (res.ok) {
+            setKeyVerification({ status: 'valid' })
+            await api.credentials.set({ ref: keyRef, value: newKey })
+            void api.credentials.describe({ refs: [keyRef] }).then(
+              (response) => {
+                if (response.result.ok) setKeyState(response.result.value.credentials[keyRef])
+              },
+              () => undefined,
+            )
+            showImportSuccessToast('✅ 密钥导入成功，检测有效，已自动保存！')
+            setTimeout(() => {
+              props.onClose(true)
+            }, 1200)
+          } else {
+            setKeyVerification({
+              status: 'invalid',
+              ...res.message !== undefined ? { message: res.message } : {},
+            })
+            showImportSuccessToast(`⚠️ 密钥导入成功，检测提示: ${res.message || '请确认'}`, true)
+          }
+        } catch (error) {
+          setKeyVerification({ status: 'invalid', message: messageOf(error) })
+          showImportSuccessToast('⚠️ 密钥已填入，检测时发生网络异常', true)
+        } finally {
+          setVerifyingKey(false)
+        }
+      })()
     }
 
-    if (!data?.apiKey) return
-    const newKey = String(data.apiKey).trim()
-    localStorage.removeItem('mowan_pending_import_provider')
-
-    setKeyDraft(newKey)
-
-    void (async () => {
-      setVerifyingKey(true)
-      setKeyVerification(undefined)
-      try {
-        const res = await runKeyVerification(newKey)
-        if (res.ok) {
-          setKeyVerification({ status: 'valid' })
-          await api.credentials.set({ ref: keyRef, value: newKey })
-          void api.credentials.describe({ refs: [keyRef] }).then(
-            (response) => {
-              if (response.result.ok) setKeyState(response.result.value.credentials[keyRef])
-            },
-            () => undefined,
-          )
-          showImportSuccessToast('✅ 密钥导入成功，检测有效，已自动保存！')
-          setTimeout(() => {
-            props.onClose(true)
-          }, 1200)
-        } else {
-          setKeyVerification({
-            status: 'invalid',
-            ...res.message !== undefined ? { message: res.message } : {},
-          })
-          showImportSuccessToast(`⚠️ 密钥导入成功，检测提示: ${res.message || '请确认'}`, true)
-        }
-      } catch (error) {
-        setKeyVerification({ status: 'invalid', message: messageOf(error) })
-        showImportSuccessToast('⚠️ 密钥已填入，检测时发生网络异常', true)
-      } finally {
-        setVerifyingKey(false)
-      }
-    })()
+    handleImport()
+    window.addEventListener('dsh:open-settings', handleImport)
+    return () => {
+      window.removeEventListener('dsh:open-settings', handleImport)
+    }
   }, [layout, keyRef, api.credentials, probeBaseURL])
 
   /**
