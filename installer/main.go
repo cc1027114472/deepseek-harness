@@ -118,6 +118,33 @@ func getInstallDir() string {
 	return filepath.Join(localAppData, "Programs", "Mowan-Agent")
 }
 
+func getInstalledDirFromRegistry() string {
+	baseKey := `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Mowan-Agent`
+	cmd := exec.Command("reg", "query", baseKey, "/v", "InstallLocation")
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "InstallLocation") {
+			parts := strings.Fields(line)
+			if len(parts) >= 3 {
+				idx := strings.Index(line, parts[2])
+				if idx != -1 {
+					p := strings.TrimSpace(line[idx:])
+					if _, err := os.Stat(p); err == nil {
+						return p
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
 func killOldInstances(installDir string) {
 	killCmd := func(name string) {
 		cmd := exec.Command("taskkill", "/F", "/IM", name, "/T")
@@ -279,7 +306,7 @@ func registerUninstall(installDir string) {
 	}
 
 	regAdd("DisplayName", "REG_SZ", "魔丸 AI 智能助手 (Mowan Agent)")
-	regAdd("DisplayVersion", "REG_SZ", "1.0.0")
+	regAdd("DisplayVersion", "REG_SZ", "2.0.3")
 	regAdd("Publisher", "REG_SZ", "魔丸团队")
 	regAdd("DisplayIcon", "REG_SZ", icoPath)
 	regAdd("UninstallString", "REG_SZ", fmt.Sprintf(`"%s"`, uninstExe))
@@ -288,6 +315,30 @@ func registerUninstall(installDir string) {
 	regAdd("EstimatedSize", "REG_DWORD", "650000")
 	regAdd("NoModify", "REG_DWORD", "1")
 	regAdd("NoRepair", "REG_DWORD", "1")
+}
+
+func registerURLScheme(installDir string) {
+	appExe := filepath.Join(installDir, "Mowan-Agent.exe")
+	icoPath := filepath.Join(installDir, "mowan.ico")
+	baseKey := `HKCU\Software\Classes\mowan`
+
+	regAdd := func(key, name, valType, data string) {
+		args := []string{"add", key, "/f"}
+		if name != "" {
+			args = append(args, "/v", name)
+		} else {
+			args = append(args, "/ve")
+		}
+		args = append(args, "/t", valType, "/d", data)
+		cmd := exec.Command("reg", args...)
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
+		_ = cmd.Run()
+	}
+
+	regAdd(baseKey, "", "REG_SZ", "URL:Mowan Protocol")
+	regAdd(baseKey, "URL Protocol", "REG_SZ", "")
+	regAdd(baseKey+`\DefaultIcon`, "", "REG_SZ", icoPath)
+	regAdd(baseKey+`\shell\open\command`, "", "REG_SZ", fmt.Sprintf(`"%s" "%%1"`, appExe))
 }
 
 type browseInfo struct {
@@ -668,6 +719,7 @@ func main() {
 	logMsg("Executable path: %s", exePath)
 
 	isSilent := false
+	isUpgrade := false
 	noLaunch := false
 	testGui := false
 	customDir := ""
@@ -675,6 +727,8 @@ func main() {
 		arg := os.Args[i]
 		if arg == "-y" || arg == "--silent" || arg == "-s" || arg == "/S" {
 			isSilent = true
+		} else if arg == "--upgrade" || arg == "/UPGRADE" || arg == "-u" {
+			isUpgrade = true
 		} else if arg == "--no-launch" {
 			noLaunch = true
 		} else if arg == "--test-gui" {
@@ -689,8 +743,10 @@ func main() {
 	installDir := getInstallDir()
 	if customDir != "" {
 		installDir = customDir
+	} else if regDir := getInstalledDirFromRegistry(); regDir != "" {
+		installDir = regDir
 	}
-	logMsg("Default install target dir: %s", installDir)
+	logMsg("Default install target dir: %s (isUpgrade: %v)", installDir, isUpgrade)
 
 	var ui *InstallUI
 	if !isSilent {
@@ -701,7 +757,12 @@ func main() {
 			return
 		}
 
-		if !testGui {
+		if isUpgrade {
+			ui.SwitchToInstalling()
+			ui.installStarted = true
+			titleText, _ := syscall.UTF16PtrFromString("正在升级 魔丸 (Mowan Agent)...")
+			setWindowText.Call(ui.hwndTitle, uintptr(unsafe.Pointer(titleText)))
+		} else if !testGui {
 			// Phase 1: Wait for user to confirm path or cancel
 			for !ui.installStarted && !ui.userCancelled {
 				ui.ProcessMessages()
@@ -869,6 +930,8 @@ func main() {
 	logMsg("Shortcuts created")
 	registerUninstall(installDir)
 	logMsg("Uninstall registered in Windows Settings / Control Panel")
+	registerURLScheme(installDir)
+	logMsg("URL protocol mowan:// registered")
 
 	if ui != nil {
 		ui.SetProgress(100, "安装完毕！正在启动 魔丸...")

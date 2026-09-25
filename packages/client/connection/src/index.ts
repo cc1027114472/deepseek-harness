@@ -11,6 +11,14 @@ import { assertTrustedAuthority, isTrustedApiRequest } from './api-request-trust
 import { HostConnectionService } from './rpc-host.ts'
 import { rejectWebSocketUpgrade, WebSocketDownlinks } from './websocket-downlink.ts'
 import { resolveGitBranch } from './git-branch.ts'
+import {
+  checkForUpdate,
+  getCachedUpdate,
+  getDownloadStatus,
+  startDownload,
+  applyAndRestart,
+  CURRENT_VERSION,
+} from './updater.ts'
 
 export type {
   ConnectionRpcAuthority,
@@ -193,6 +201,70 @@ export function apply(ctx: Context, config?: ConnectionConfig): void {
     },
   }
   ctx.effect(() => ctx.webServer.register(gitBranchRoute), 'client-connection: /api/git-branch route')
+
+  const updateRoute: WebRoute = {
+    kind: 'prefix',
+    path: '/api/system/update',
+    handler: async (req, res) => {
+      const url = new URL(req.url ?? '/', 'http://localhost')
+      const pathname = url.pathname
+
+      res.setHeader('content-type', 'application/json; charset=utf-8')
+      res.setHeader('cache-control', 'no-cache, no-store')
+
+      if (req.method === 'GET' && pathname === '/api/system/update/check') {
+        const force = url.searchParams.get('force') === 'true'
+        const overrideUrl = url.searchParams.get('url') ?? undefined
+        const result = force ? await checkForUpdate(overrideUrl) : (getCachedUpdate().hasUpdate ? getCachedUpdate() : await checkForUpdate(overrideUrl))
+        res.writeHead(200)
+        res.end(JSON.stringify(result))
+        return
+      }
+
+      if (req.method === 'GET' && pathname === '/api/system/update/status') {
+        res.writeHead(200)
+        res.end(JSON.stringify({
+          currentVersion: CURRENT_VERSION,
+          progress: getDownloadStatus(),
+        }))
+        return
+      }
+
+      if (req.method === 'POST' && pathname === '/api/system/update/download') {
+        let body = ''
+        req.on('data', chunk => { body += chunk })
+        req.on('end', () => {
+          try {
+            const payload = body ? JSON.parse(body) : {}
+            const downloadUrl = payload.downloadUrl || getCachedUpdate().downloadUrl
+            if (!downloadUrl) {
+              res.writeHead(400)
+              res.end(JSON.stringify({ error: 'Missing downloadUrl' }))
+              return
+            }
+            startDownload(downloadUrl, payload.sha256)
+            res.writeHead(200)
+            res.end(JSON.stringify({ success: true, progress: getDownloadStatus() }))
+          } catch (err) {
+            res.writeHead(400)
+            res.end(JSON.stringify({ error: String(err) }))
+          }
+        })
+        return
+      }
+
+      if (req.method === 'POST' && pathname === '/api/system/update/apply') {
+        const result = applyAndRestart()
+        res.writeHead(result.success ? 200 : 500)
+        res.end(JSON.stringify(result))
+        return
+      }
+
+      res.writeHead(404)
+      res.end(JSON.stringify({ error: 'Not found' }))
+    },
+  }
+  ctx.effect(() => ctx.webServer.register(updateRoute), 'client-connection: /api/system/update route')
   ctx.inject(['apiProxy'], (apiCtx) => {
     assertImageBodyCapacity(apiCtx, maxRequestBodyBytes)
     const downlinks = new WebSocketDownlinks(apiCtx.apiProxy)

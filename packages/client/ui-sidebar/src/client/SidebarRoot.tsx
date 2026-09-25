@@ -86,6 +86,30 @@ export function SidebarRoot({
     window.clearTimeout(lingerTimer.current)
     lingerTimer.current = undefined
   }
+
+  // Check for updates periodically and reflect status in top-left badge
+  const [updateInfo, setUpdateInfo] = useState<{ hasUpdate: boolean; latestVersion?: string | undefined }>({ hasUpdate: false })
+  useEffect(() => {
+    let isMounted = true
+    const check = async () => {
+      try {
+        const res = await fetch('/api/system/update/check?force=false')
+        if (res.ok && isMounted) {
+          const data = (await res.json()) as { hasUpdate?: boolean; latestVersion?: string }
+          if (data && data.hasUpdate) {
+            setUpdateInfo({ hasUpdate: true, latestVersion: data.latestVersion })
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    const timer = window.setTimeout(check, 1500)
+    return () => {
+      isMounted = false
+      window.clearTimeout(timer)
+    }
+  }, [])
   // Leaving is decided by the column's BOX, not by DOM containment, and only
   // while the bars are drawn. ui-settings renders its full-viewport panel as a
   // fixed-position DESCENDANT of this column, so a pointer moved onto that
@@ -144,7 +168,29 @@ export function SidebarRoot({
                   fallback: <span className={css.fallbackBrandName}>魔丸</span>,
                 })}
               </span>
-              <span className={css.buildRevision}>v2.0.1</span>
+              <span
+                className={clsx(css.buildRevision, updateInfo.hasUpdate && css.hasUpdate)}
+                role="button"
+                tabIndex={0}
+                title={
+                  updateInfo.hasUpdate
+                    ? `🔥 发现新版本 v${updateInfo.latestVersion}，点击立即更新`
+                    : '当前版本 v2.0.3 (点击查看或检查更新)'
+                }
+                onClick={(e) => {
+                  e.stopPropagation()
+                  window.dispatchEvent(new CustomEvent('dsh:open-settings', { detail: { section: 'general' } }))
+                }}
+              >
+                {updateInfo.hasUpdate ? (
+                  <>
+                    <span className={css.updateDot} />
+                    <span>v{updateInfo.latestVersion || '2.0.3'} NEW</span>
+                  </>
+                ) : (
+                  'v2.0.3'
+                )}
+              </span>
             </span>
           </button>
         )}

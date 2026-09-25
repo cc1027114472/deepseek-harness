@@ -6,6 +6,7 @@
  */
 import { IconSettingsOutline14, IconSettingsOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { useUpdateManager } from './update-manager.ts'
 import css from './chrome.module.css'
 
 /** Trigger content props: the sidebar column state + the standard locale seat. */
@@ -20,11 +21,18 @@ export type HeaderContentProps = PropsRuntime<'settings.header'> & PropsLocale<'
  * @returns the trigger content fragment.
  */
 export function TriggerContent({ wide, t }: TriggerContentProps) {
+  const { updateInfo } = useUpdateManager()
+  const hasUpdate = updateInfo.hasUpdate
+
   return (
-    <>
-      {wide ? <IconSettingsOutline16 size={16} /> : <IconSettingsOutline14 size={18} />}
+    <div className={css.triggerWrapper}>
+      <span className={css.iconWrapper}>
+        {wide ? <IconSettingsOutline16 size={16} /> : <IconSettingsOutline14 size={18} />}
+        {hasUpdate && <span className={css.updateBadge} title="发现新版本，点击查看" />}
+      </span>
       {wide && <span className={css.triggerLabel}>{t('trigger')}</span>}
-    </>
+      {wide && hasUpdate && <span className={css.updatePill}>NEW</span>}
+    </div>
   )
 }
 

@@ -5,6 +5,16 @@
 
 export type TunnelMode = 'quick' | 'auth'
 
+/** Real accessible LAN address information on physical network interfaces. */
+export interface LanAddressInfo {
+  /** Name of the network interface (e.g. "WLAN 3", "Ethernet"). */
+  name: string
+  /** IPv4 address literal (e.g. "192.168.1.104"). */
+  ip: string
+  /** Ready-to-use HTTP URL with port (e.g. "http://192.168.1.104:3090"). */
+  url: string
+}
+
 /** Current runtime status of the Cloudflared tunnel. */
 export interface TunnelStatus {
   /** Whether the cloudflared executable is present locally. */
@@ -19,6 +29,8 @@ export interface TunnelStatus {
   error?: string
   /** Generated or configured authentication token required for remote access. */
   authToken?: string
+  /** Physical LAN addresses accessible by devices on the local network. */
+  lanAddresses?: LanAddressInfo[]
 }
 
 /** Configuration options for the tunnel plugin. */
@@ -49,6 +61,8 @@ export interface TunnelService {
   stop(): Promise<TunnelStatus>
   /** Get current tunnel status. */
   getStatus(): TunnelStatus
+  /** Set and persist a custom authentication token/password. */
+  setAuthToken(token: string): Promise<TunnelStatus>
   /** Validate an access token from an external visitor. */
   validateToken(token: string | undefined): boolean
 }

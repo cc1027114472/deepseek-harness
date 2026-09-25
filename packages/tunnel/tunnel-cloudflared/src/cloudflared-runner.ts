@@ -8,6 +8,7 @@
 import { spawn, execFile, type ChildProcess } from 'node:child_process'
 import { chmod, mkdir, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
@@ -15,11 +16,40 @@ import type { TunnelConfig, TunnelStatus } from './types.ts'
 
 const execFileAsync = promisify(execFile)
 
-/** Get path to local cloudflared executable. */
+/**
+ * Get path to local cloudflared executable.
+ * Checks primary home bin directory (~/.mowan/bin), legacy (~/.dsh/bin),
+ * and system PATH before defaulting to the primary destination path.
+ */
 export function getBinaryPath(): string {
   const isWin = process.platform === 'win32'
   const binName = isWin ? 'cloudflared.exe' : 'cloudflared'
-  return dshHomePath('bin', binName)
+
+  const primaryPath = dshHomePath('bin', binName)
+  if (existsSync(primaryPath)) {
+    return primaryPath
+  }
+
+  const legacyPath = join(homedir(), '.dsh', 'bin', binName)
+  if (existsSync(legacyPath)) {
+    return legacyPath
+  }
+
+  const pathEnv = process.env.PATH ?? ''
+  const delimiter = isWin ? ';' : ':'
+  for (const dir of pathEnv.split(delimiter)) {
+    if (!dir) continue
+    const candidate = join(dir.trim(), binName)
+    try {
+      if (existsSync(candidate)) {
+        return candidate
+      }
+    } catch {
+      // Ignore unreadable entries
+    }
+  }
+
+  return primaryPath
 }
 
 /** Check if cloudflared is installed and extract its version string. */
@@ -36,7 +66,8 @@ export async function checkInstalled(): Promise<{ installed: boolean; version?: 
     if (firstLine) result.version = firstLine
     return result
   } catch {
-    return { installed: false }
+    // Binary exists on disk; report installed even if running --version fails
+    return { installed: true }
   }
 }
 
@@ -71,7 +102,8 @@ function getDownloadUrl(): { url: string; isArchive: boolean } {
 
 /** Download and install the cloudflared executable into $DSH_HOME/bin. */
 export async function installCloudflared(): Promise<{ installed: boolean; version?: string }> {
-  const binPath = getBinaryPath()
+  const isWin = process.platform === 'win32'
+  const binPath = dshHomePath('bin', isWin ? 'cloudflared.exe' : 'cloudflared')
   const binDir = dirname(binPath)
   await mkdir(binDir, { recursive: true })
 

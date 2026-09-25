@@ -55,6 +55,18 @@ export interface WebUpgradeRoute {
   handler: (req: IncomingMessage, socket: Duplex, head: Buffer) => void | Promise<void>
 }
 
+/**
+ * Pre-dispatch request interceptor. Returns true (or resolves to true) to allow
+ * the request to proceed, or false if the interceptor has handled the response.
+ */
+export type WebInterceptor = (req: IncomingMessage, res: ServerResponse) => boolean | Promise<boolean>
+
+/**
+ * Pre-upgrade socket interceptor. Returns true (or resolves to true) to allow
+ * protocol upgrade to proceed, or false if the interceptor rejected/destroyed the socket.
+ */
+export type WebUpgradeInterceptor = (req: IncomingMessage, socket: Duplex, head: Buffer) => boolean | Promise<boolean>
+
 /** Gateway config: the listen address. */
 export interface Config {
   /** Listen host; the two supported values are loopback and all-interfaces. */
@@ -81,6 +93,8 @@ export class WebServer extends Service {
   private readonly upgrades = new Map<string, WebUpgradeRoute>()
   private readonly upgradedSockets = new Set<Duplex>()
   private readonly indexTaps: ((html: string) => string)[] = []
+  private readonly interceptors: WebInterceptor[] = []
+  private readonly upgradeInterceptors: WebUpgradeInterceptor[] = []
   private fallback: WebRoute['handler'] | undefined
   private server!: Server
   private listenedPort!: number
@@ -129,6 +143,34 @@ export class WebServer extends Service {
   }
 
   /**
+   * Register a pre-dispatch request interceptor. Interceptors run in registration
+   * order before route dispatch. Returning false halts further dispatch.
+   * @param interceptor - request interceptor function.
+   * @returns disposer removing the interceptor.
+   */
+  registerInterceptor(interceptor: WebInterceptor): () => void {
+    this.interceptors.push(interceptor)
+    return () => {
+      const at = this.interceptors.indexOf(interceptor)
+      if (at !== -1) this.interceptors.splice(at, 1)
+    }
+  }
+
+  /**
+   * Register a pre-upgrade socket interceptor. Interceptors run in registration
+   * order before upgrade handler dispatch. Returning false halts upgrade.
+   * @param interceptor - upgrade interceptor function.
+   * @returns disposer removing the interceptor.
+   */
+  registerUpgradeInterceptor(interceptor: WebUpgradeInterceptor): () => void {
+    this.upgradeInterceptors.push(interceptor)
+    return () => {
+      const at = this.upgradeInterceptors.indexOf(interceptor)
+      if (at !== -1) this.upgradeInterceptors.splice(at, 1)
+    }
+  }
+
+  /**
    * Claim the fallback seat: the handler answering every request no named
    * route matches (the SPA dist server in the shipped Web composition). One
    * owner only — a second registration throws, because two fallbacks cannot
@@ -162,6 +204,22 @@ export class WebServer extends Service {
   /** Listen; resolves once the socket is bound (rejection = FAILED fiber). */
   async [Service.init](): Promise<void> {
     const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+      // Support Cross-Origin Resource Sharing and Chrome Private Network Access (PNA)
+      res.setHeader('Access-Control-Allow-Origin', '*')
+      res.setHeader('Access-Control-Allow-Private-Network', 'true')
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD')
+      res.setHeader('Access-Control-Allow-Headers', '*')
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204)
+        res.end()
+        return
+      }
+
+      for (const interceptor of this.interceptors) {
+        const allow = await interceptor(req, res)
+        if (!allow) return
+      }
+
       /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
       requests; the field is only optional on the client-side IncomingMessage type */
       const rawPath = new URL(req.url ?? '/', 'http://x').pathname
@@ -193,7 +251,7 @@ export class WebServer extends Service {
         res.end()
       })
     })
-    this.server.on('upgrade', (req, socket, head) => {
+    this.server.on('upgrade', async (req, socket, head) => {
       const onError = (error: Error): void => {
         this.ctx.logger.warn(error)
         socket.destroy()
@@ -203,6 +261,22 @@ export class WebServer extends Service {
         socket.off('error', onError)
         this.upgradedSockets.delete(socket)
       })
+
+      for (const interceptor of this.upgradeInterceptors) {
+        let allow = false
+        try {
+          allow = await interceptor(req, socket, head)
+        } catch (error) {
+          this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))
+          socket.destroy()
+          return
+        }
+        if (!allow) {
+          socket.destroy()
+          return
+        }
+      }
+
       let route: WebUpgradeRoute | undefined
       try {
         /* v8 ignore next -- node:http always sets url on server requests. */
