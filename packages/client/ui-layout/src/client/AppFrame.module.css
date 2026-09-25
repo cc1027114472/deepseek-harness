@@ -117,3 +117,29 @@
 .overlayLayer > * {
   pointer-events: auto;
 }
+
+@media (max-width: 768px) {
+  .frame {
+    display: grid !important;
+    grid-template-columns: 44px 1fr 0px !important;
+  }
+
+  .sidebarCol {
+    display: block !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+  }
+
+  .detailsCol {
+    display: none !important;
+  }
+
+  .handle {
+    display: none !important;
+  }
+
+  .centerCol {
+    min-width: 0 !important;
+  }
+}

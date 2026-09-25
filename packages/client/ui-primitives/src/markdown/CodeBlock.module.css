@@ -94,3 +94,25 @@
 .plain {
   color: var(--dsw-alias-label-primary);
 }
+
+@media (max-width: 768px) {
+  .block {
+    margin: 10px 0;
+    border-radius: 8px;
+  }
+
+  .banner {
+    padding: 6px 10px;
+    gap: 8px;
+  }
+
+  .block :where(pre) {
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre !important;
+    word-break: normal !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}

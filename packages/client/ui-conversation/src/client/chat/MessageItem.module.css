@@ -289,3 +289,16 @@
 .refIcon {
   flex: none;
 }
+
+@media (max-width: 768px) {
+  .userStack {
+    max-width: 90%;
+  }
+
+  .bubble {
+    padding: 8px 12px;
+    font-size: 14px;
+    line-height: 20px;
+    border-radius: 14px;
+  }
+}

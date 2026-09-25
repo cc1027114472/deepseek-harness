@@ -471,3 +471,45 @@
   opacity: 0.7;
   color: var(--dsw-alias-state-error-primary);
 }
+
+@media (max-width: 768px) {
+  .root {
+    padding: 0 var(--dsh-composer-side-clearance) 4px;
+  }
+
+  .card {
+    border-radius: 14px;
+    padding-top: 6px;
+    gap: 4px;
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .row {
+    padding: 2px 6px 4px;
+    gap: 6px;
+  }
+
+  .tools {
+    gap: 8px;
+  }
+
+  .modes {
+    gap: 6px;
+  }
+
+  .trailing {
+    gap: 6px;
+  }
+
+  .add {
+    width: 24px;
+    height: 24px;
+  }
+
+  .input,
+  .mirror,
+  .backdrop {
+    padding: 2px 10px 0 12px;
+  }
+}

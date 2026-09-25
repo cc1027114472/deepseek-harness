@@ -368,3 +368,20 @@
 .root[data-phase='settling'] .composerSeat {
   visibility: hidden;
 }
+
+@media (max-width: 768px) {
+  .root {
+    --dsh-chat-content-width: 100%;
+    --dsh-composer-card-max-width: 100%;
+    --dsh-composer-side-clearance: 6px;
+    --dsh-composer-dock-inset: 4px;
+  }
+
+  .header {
+    padding: 6px 12px 0 12px;
+  }
+
+  .titleRow {
+    min-height: 28px;
+  }
+}
