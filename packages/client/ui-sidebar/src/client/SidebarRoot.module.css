@@ -339,6 +339,12 @@
 }
 
 @media (max-width: 768px) {
+  .root {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
   .root.collapsed {
     padding: 12px 4px 6px;
   }

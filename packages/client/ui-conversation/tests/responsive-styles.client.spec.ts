@@ -58,8 +58,10 @@ describe('Mobile responsive stylesheet contract', () => {
     expect(codeBlockCss).toMatch(/overflow-x:\s*auto\s*!important/)
   })
 
-  it('compacts the sidebar rail to 44px on mobile and hides details column', () => {
+  it('compacts the sidebar rail to 44px on mobile, converts expanded sidebar to drawer, and hides details column', () => {
     expect(appFrameCss).toMatch(/44px/)
+    expect(appFrameCss).toMatch(/overflow:\s*hidden\s*!important/)
+    expect(appFrameCss).toMatch(/\.frame:not\(\[data-sidebar-collapsed\]\)\s+\.sidebarCol[\s\S]*position:\s*fixed\s*!important/)
     expect(appFrameCss).toMatch(/\.detailsCol\s*\{[^}]*display:\s*none\s*!important/)
     expect(sidebarRootCss).toMatch(/\.root\.collapsed\s*\{[^}]*padding:\s*12px 4px 6px;/)
   })
