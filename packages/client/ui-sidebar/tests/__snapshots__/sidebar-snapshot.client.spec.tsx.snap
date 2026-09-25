@@ -148,9 +148,9 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
             class="buildRevision"
             role="button"
             tabindex="0"
-            title="当前版本 v2.0.3 (点击查看或检查更新)"
+            title="当前版本 v2.1.0 (点击查看或检查更新)"
           >
-            v2.0.3
+            v2.1.0
           </span>
         </span>
       </button>
@@ -277,9 +277,9 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
             class="buildRevision"
             role="button"
             tabindex="0"
-            title="当前版本 v2.0.3 (点击查看或检查更新)"
+            title="当前版本 v2.1.0 (点击查看或检查更新)"
           >
-            v2.0.3
+            v2.1.0
           </span>
         </span>
       </button>

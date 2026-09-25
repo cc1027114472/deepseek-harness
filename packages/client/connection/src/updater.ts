@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 
-export const CURRENT_VERSION = '2.0.3'
+export const CURRENT_VERSION = '2.1.0'
 
 export interface UpdateManifest {
   version: string
@@ -110,7 +110,7 @@ function fetchSingleUrl(updateUrl: string): Promise<CheckUpdateResult> {
         }
 
         let body = ''
-        res.on('data', chunk => { body += chunk })
+        res.on('data', (chunk) => { body += chunk })
         res.on('end', () => {
           try {
             const manifest = JSON.parse(body) as UpdateManifest

@@ -49,12 +49,12 @@
 
 ```json
 {
-  "version": "2.0.3",
+  "version": "2.1.0",
   "releaseDate": "2026-09-25",
   "minSupportedVersion": "1.0.0",
   "mandatory": false,
-  "downloadUrl": "https://ukapi.cc/downloads/Mowan-Agent-Setup-latest.exe",
-  "backupDownloadUrl": "https://github.com/wensheng-ai/mowan-agent-releases/releases/download/v2.0.3/Mowan-Agent-Setup-2.0.3.exe",
+  "downloadUrl": "https://ukapi.cc/downloads/Mowan-Agent-Setup-2.1.0.exe",
+  "backupDownloadUrl": "https://github.com/wensheng-ai/mowan-agent-releases/releases/download/v2.1.0/Mowan-Agent-Setup-2.1.0.exe",
   "sha256": "115a90f374c323e2dfec10d036ea755feea511ca36adca9fb77b3c7e9698ee1c",
   "fileSize": 182832905,
   "changelog": [
@@ -97,7 +97,7 @@
 
 #### (1) 侧边栏/导航栏（全局更新标识与动态入口）
 * **左侧栏版本动态胶囊（最推荐交互入口）**：
-  * **日常状态**：左侧栏魔丸 Logo 旁显示低调中性灰版本号胶囊（如 `v2.0.3`），与整体深色/浅色 UI 自然融合，鼠标悬停 Tooltip 提示 `当前版本 v2.0.3 (点击查看或检查更新)`。
+  * **日常状态**：左侧栏魔丸 Logo 旁显示低调中性灰版本号胶囊（如 `v2.1.0`），与整体深色/浅色 UI 自然融合，鼠标悬停 Tooltip 提示 `当前版本 v2.1.0 (点击查看或检查更新)`。
   * **发现新版本**：自动切换为渐变红橙呼吸发光胶囊（`#ff4d4f` → `#fa541c`），伴随白色微光呼吸脉冲与闪烁白点（White Pulse Dot），文案动态呈现 `🔥 发现新版本 vX.Y.Z NEW`。
   * **直达交互**：点击版本胶囊即可直接通过前端事件 `dsh:open-settings` 直达设置与更新面板，无需层层翻找菜单。
 * **常驻设置齿轮**：发现新版本后，左下角/顶部的设置图标右上角同步点亮 **呼吸发光红点（Red Dot Badge）**。

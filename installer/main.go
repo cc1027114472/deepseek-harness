@@ -306,7 +306,7 @@ func registerUninstall(installDir string) {
 	}
 
 	regAdd("DisplayName", "REG_SZ", "魔丸 AI 智能助手 (Mowan Agent)")
-	regAdd("DisplayVersion", "REG_SZ", "2.0.3")
+	regAdd("DisplayVersion", "REG_SZ", "2.1.0")
 	regAdd("Publisher", "REG_SZ", "魔丸团队")
 	regAdd("DisplayIcon", "REG_SZ", icoPath)
 	regAdd("UninstallString", "REG_SZ", fmt.Sprintf(`"%s"`, uninstExe))

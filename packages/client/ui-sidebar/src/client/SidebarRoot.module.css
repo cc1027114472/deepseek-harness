@@ -218,8 +218,8 @@
   padding: 0 6px;
   border-radius: 9px;
   color: var(--dsw-alias-label-secondary);
-  background: var(--dsw-alias-interactive-bg-subtle, rgba(125, 125, 125, 0.1));
-  border: 1px solid var(--dsw-alias-border-subtle, rgba(125, 125, 125, 0.2));
+  background: var(--dsw-alias-interactive-bg-subtle);
+  border: 1px solid var(--dsw-alias-border-subtle);
   font-family: var(--ds-font-family-code);
   font-size: 10px;
   font-weight: 500;
@@ -232,8 +232,8 @@
 
 .buildRevision:hover {
   color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-hover, rgba(125, 125, 125, 0.18));
-  border-color: var(--dsw-alias-border-hover, rgba(125, 125, 125, 0.35));
+  background: var(--dsw-alias-interactive-bg-hover);
+  border-color: var(--dsw-alias-border-hover);
   transform: translateY(-0.5px);
 }
 

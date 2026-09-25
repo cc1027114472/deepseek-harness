@@ -88,16 +88,24 @@ export function SidebarRoot({
   }
 
   // Check for updates periodically and reflect status in top-left badge
-  const [updateInfo, setUpdateInfo] = useState<{ hasUpdate: boolean; latestVersion?: string | undefined }>({ hasUpdate: false })
+  const [updateInfo, setUpdateInfo] = useState<{
+    hasUpdate: boolean
+    latestVersion?: string | undefined
+    currentVersion?: string | undefined
+  }>({ hasUpdate: false })
   useEffect(() => {
     let isMounted = true
     const check = async () => {
       try {
         const res = await fetch('/api/system/update/check?force=false')
         if (res.ok && isMounted) {
-          const data = (await res.json()) as { hasUpdate?: boolean; latestVersion?: string }
-          if (data && data.hasUpdate) {
-            setUpdateInfo({ hasUpdate: true, latestVersion: data.latestVersion })
+          const data = (await res.json()) as { hasUpdate?: boolean; latestVersion?: string; currentVersion?: string }
+          if (data) {
+            setUpdateInfo({
+              hasUpdate: Boolean(data.hasUpdate),
+              latestVersion: data.latestVersion,
+              currentVersion: data.currentVersion,
+            })
           }
         }
       } catch {
@@ -175,7 +183,7 @@ export function SidebarRoot({
                 title={
                   updateInfo.hasUpdate
                     ? `🔥 发现新版本 v${updateInfo.latestVersion}，点击立即更新`
-                    : '当前版本 v2.0.3 (点击查看或检查更新)'
+                    : `当前版本 v${updateInfo.currentVersion || '2.1.0'} (点击查看或检查更新)`
                 }
                 onClick={(e) => {
                   e.stopPropagation()
@@ -185,10 +193,10 @@ export function SidebarRoot({
                 {updateInfo.hasUpdate ? (
                   <>
                     <span className={css.updateDot} />
-                    <span>v{updateInfo.latestVersion || '2.0.3'} NEW</span>
+                    <span>v{updateInfo.latestVersion || '2.1.0'} NEW</span>
                   </>
                 ) : (
-                  'v2.0.3'
+                  `v${updateInfo.currentVersion || '2.1.0'}`
                 )}
               </span>
             </span>
