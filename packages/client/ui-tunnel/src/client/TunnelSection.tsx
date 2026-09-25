@@ -1,5 +1,5 @@
 /**
- * TunnelSection: Settings page view for Cloudflare Tunnel configuration,
+ * TunnelSection: Settings page view for LAN & Cloudflare Tunnel access configuration,
  * connection status, secure token/password management, and mobile QR code pairing.
  * @module @deepseek-ai/dsh-client-ui-tunnel/client/TunnelSection
  */
@@ -13,6 +13,12 @@ export interface TunnelSectionProps extends PropsRuntime<'settings.section'> {
   t: (key: TunnelKey) => string
 }
 
+interface LanAddressInfo {
+  name: string
+  ip: string
+  url: string
+}
+
 interface TunnelStatus {
   installed: boolean
   version?: string
@@ -20,6 +26,13 @@ interface TunnelStatus {
   url?: string
   error?: string
   authToken?: string
+  lanAddresses?: LanAddressInfo[]
+}
+
+interface QrModalData {
+  title: string
+  tip: string
+  url: string
 }
 
 export function TunnelSection({ t }: TunnelSectionProps) {
@@ -29,7 +42,7 @@ export function TunnelSection({ t }: TunnelSectionProps) {
   })
   const [loading, setLoading] = useState<boolean>(false)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
-  const [showQr, setShowQr] = useState<boolean>(false)
+  const [qrModal, setQrModal] = useState<QrModalData | null>(null)
 
   // Password editing states
   const [isEditingPassword, setIsEditingPassword] = useState<boolean>(false)
@@ -51,7 +64,7 @@ export function TunnelSection({ t }: TunnelSectionProps) {
 
   useEffect(() => {
     void fetchStatus()
-    // Poll status when starting or running
+    // Poll status periodically
     const interval = setInterval(() => {
       void fetchStatus()
     }, 3000)
@@ -133,7 +146,7 @@ export function TunnelSection({ t }: TunnelSectionProps) {
         setFeedbackMsg({ text: t('passwordSaved') })
         setTimeout(() => setFeedbackMsg(null), 3000)
       } else {
-        const err = await res.json()
+        const err = (await res.json()) as { error?: string }
         setFeedbackMsg({ text: err.error || '保存失败', isError: true })
       }
     } catch {
@@ -150,8 +163,8 @@ export function TunnelSection({ t }: TunnelSectionProps) {
     }).catch(() => {})
   }
 
-  const fullPairingUrl = status.url && status.authToken
-    ? `${status.url}/?token=${status.authToken}`
+  const publicPairingUrl = status.url && status.authToken
+    ? `${status.url}/?token=${encodeURIComponent(status.authToken)}`
     : status.url ?? ''
 
   return (
@@ -161,7 +174,64 @@ export function TunnelSection({ t }: TunnelSectionProps) {
         <p className={css.description}>{t('description')}</p>
       </div>
 
-      {/* Card 1: LAN & Remote Access Password/Token Control */}
+      {/* Card 1: Real Physical LAN Addresses */}
+      <div className={css.card}>
+        <div className={css.field}>
+          <div className={css.row}>
+            <label className={css.fieldLabel}>{t('lanTitle')}</label>
+          </div>
+          <p className={css.tip}>{t('lanTip')}</p>
+
+          <div className={css.lanList} style={{ marginTop: '8px' }}>
+            {status.lanAddresses && status.lanAddresses.length > 0 ? (
+              status.lanAddresses.map((lan, idx) => {
+                const lanPairingUrl = status.authToken
+                  ? `${lan.url}/?token=${encodeURIComponent(status.authToken)}`
+                  : lan.url
+                return (
+                  <div key={idx} className={css.lanItem}>
+                    <div className={css.lanHeader}>
+                      <span style={{ fontSize: '13px', fontWeight: 600 }}>
+                        {lan.name}
+                      </span>
+                      <span className={css.lanBadge}>物理网卡 ({lan.ip})</span>
+                    </div>
+                    <div className={css.inputGroup}>
+                      <input
+                        className={css.input}
+                        readOnly
+                        value={lan.url}
+                      />
+                      <button
+                        className={css.btnSecondary}
+                        onClick={() => copyToClipboard(lan.url, `lan_${idx}`)}
+                      >
+                        {copiedKey === `lan_${idx}` ? t('copied') : t('actionCopyLan')}
+                      </button>
+                      <button
+                        className={css.btnPrimary}
+                        onClick={() =>
+                          setQrModal({
+                            title: `${lan.name} - ${t('lanPairingQrTitle')}`,
+                            tip: t('lanPairingQrDesc'),
+                            url: lanPairingUrl,
+                          })
+                        }
+                      >
+                        {t('lanScanQr')}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })
+            ) : (
+              <p className={css.tip}>{t('noLanFound')}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Card 2: LAN & Remote Access Password/Token Control */}
       <div className={css.card}>
         <div className={css.field}>
           <div className={css.row}>
@@ -251,7 +321,7 @@ export function TunnelSection({ t }: TunnelSectionProps) {
         </div>
       </div>
 
-      {/* Card 2: Cloudflare Tunnel Process Control */}
+      {/* Card 3: Cloudflare Tunnel Process Control */}
       <div className={css.card}>
         <div className={css.row}>
           <div className={css.statusIndicator}>
@@ -320,7 +390,13 @@ export function TunnelSection({ t }: TunnelSectionProps) {
                   </button>
                   <button
                     className={css.btnPrimary}
-                    onClick={() => setShowQr(true)}
+                    onClick={() =>
+                      setQrModal({
+                        title: t('qrModalTitle'),
+                        tip: t('qrModalTip'),
+                        url: publicPairingUrl,
+                      })
+                    }
                   >
                     {t('actionShowQr')}
                   </button>
@@ -337,21 +413,22 @@ export function TunnelSection({ t }: TunnelSectionProps) {
         )}
       </div>
 
-      {showQr && fullPairingUrl && (
-        <div className={css.qrOverlay} onClick={() => setShowQr(false)}>
+      {/* Unified QR Code Pairing Modal */}
+      {qrModal && (
+        <div className={css.qrOverlay} onClick={() => setQrModal(null)}>
           <div className={css.qrCard} onClick={e => e.stopPropagation()}>
-            <h3 className={css.title}>{t('qrModalTitle')}</h3>
-            <p className={css.tip}>{t('qrModalTip')}</p>
+            <h3 className={css.title}>{qrModal.title}</h3>
+            <p className={css.tip}>{qrModal.tip}</p>
             <img
               className={css.qrImage}
               alt="Scan QR"
               src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-                fullPairingUrl,
+                qrModal.url,
               )}`}
             />
             <button
               className={css.btnSecondary}
-              onClick={() => setShowQr(false)}
+              onClick={() => setQrModal(null)}
             >
               {t('qrModalClose')}
             </button>

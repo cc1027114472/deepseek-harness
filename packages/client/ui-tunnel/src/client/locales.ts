@@ -34,6 +34,14 @@ export const zh = {
   passwordSaved: '密码已保存并生效',
   showPassword: '显示',
   hidePassword: '隐藏',
+  lanTitle: '局域网访问 (LAN)',
+  lanTip: '同一 Wi-Fi 或局域网内的手机、平板、电脑可直接访问（已智能过滤 VMware、WSL 等虚拟网卡）。',
+  lanDirectUrl: '局域网访问地址',
+  lanScanQr: '扫码免密直连',
+  lanPairingQrTitle: '局域网扫码免密登录',
+  lanPairingQrDesc: '手机连接同一 Wi-Fi 后使用相机或浏览器扫码，即可一键打开并自动完成密码验证。',
+  noLanFound: '未检测到活跃的局域网物理网卡',
+  actionCopyLan: '复制局域网地址',
 }
 
 export const en = {
@@ -67,6 +75,14 @@ export const en = {
   passwordSaved: 'Password saved and active',
   showPassword: 'Show',
   hidePassword: 'Hide',
+  lanTitle: 'Local Area Network (LAN)',
+  lanTip: 'Devices on the same Wi-Fi or LAN can connect directly (virtual adapters like VMware and WSL are filtered out).',
+  lanDirectUrl: 'LAN Access Address',
+  lanScanQr: 'Scan QR to Connect',
+  lanPairingQrTitle: 'LAN Scan & Connect',
+  lanPairingQrDesc: 'Connect mobile to same Wi-Fi, scan with camera or browser to open with pre-filled authentication.',
+  noLanFound: 'No active physical network adapter detected',
+  actionCopyLan: 'Copy LAN URL',
 }
 
 export type TunnelKey = keyof typeof zh

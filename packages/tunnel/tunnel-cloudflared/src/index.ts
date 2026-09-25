@@ -9,7 +9,7 @@ import z from '@deepseek-ai/schemastery'
 import { TunnelServiceImpl } from './service.ts'
 import type { TunnelConfig } from './types.ts'
 
-export type { TunnelConfig, TunnelMode, TunnelService, TunnelStatus } from './types.ts'
+export type { LanAddressInfo, TunnelConfig, TunnelMode, TunnelService, TunnelStatus } from './types.ts'
 export { TunnelServiceImpl } from './service.ts'
 export { CloudflaredRunner, checkInstalled, installCloudflared, getBinaryPath } from './cloudflared-runner.ts'
 export {
@@ -22,6 +22,7 @@ export {
   isLoopbackAddress,
   isLoopbackRequest,
 } from './auth-guard.ts'
+export { resolvePhysicalLanAddresses, isVirtualInterface } from './lan-discovery.ts'
 
 /** Cordis plugin schema for tunnel-cloudflared. */
 export const Config: z<TunnelConfig> = z.object({

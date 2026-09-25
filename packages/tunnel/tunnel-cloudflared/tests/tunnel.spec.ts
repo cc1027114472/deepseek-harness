@@ -8,7 +8,9 @@ import {
   createAuthInterceptor,
 } from '../src/auth-guard.ts'
 import { CloudflaredRunner } from '../src/cloudflared-runner.ts'
+import { isVirtualInterface, resolvePhysicalLanAddresses } from '../src/lan-discovery.ts'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { NetworkInterfaceInfo } from 'node:os'
 
 describe('tunnel-cloudflared: auth-guard', () => {
   it('generates a 32-character hex authentication token', () => {
@@ -193,5 +195,95 @@ describe('tunnel-cloudflared: runner', () => {
     const status = runner.getStatus()
     expect(status.running).toBe(false)
     expect(status.url).toBeUndefined()
+  })
+})
+
+describe('tunnel-cloudflared: lan-discovery', () => {
+  it('detects virtual interfaces by name', () => {
+    expect(isVirtualInterface('VMware Network Adapter VMnet1')).toBe(true)
+    expect(isVirtualInterface('vEthernet (WSL)')).toBe(true)
+    expect(isVirtualInterface('vEthernet (Default Switch)')).toBe(true)
+    expect(isVirtualInterface('docker0')).toBe(true)
+    expect(isVirtualInterface('Tailscale')).toBe(true)
+    expect(isVirtualInterface('WLAN 3')).toBe(false)
+    expect(isVirtualInterface('Ethernet')).toBe(false)
+    expect(isVirtualInterface('以太网')).toBe(false)
+  })
+
+  it('detects virtual interfaces by MAC OUI even with disguised name', () => {
+    expect(isVirtualInterface('MySpecialAdapter', '00:50:56:c0:00:01')).toBe(true)
+    expect(isVirtualInterface('MySpecialAdapter', '00:15:5d:17:fa:95')).toBe(true)
+    expect(isVirtualInterface('MySpecialAdapter', 'dc:71:96:dc:70:58')).toBe(false)
+  })
+
+  it('filters out virtual adapters and returns physical LAN IP with port 3090', () => {
+    const mockInterfaces: NodeJS.Dict<NetworkInterfaceInfo[]> = {
+      'VMware Network Adapter VMnet1': [
+        {
+          address: '192.168.213.1',
+          netmask: '255.255.255.0',
+          family: 'IPv4',
+          mac: '00:50:56:c0:00:01',
+          internal: false,
+          cidr: '192.168.213.1/24',
+        },
+      ],
+      'WLAN 3': [
+        {
+          address: '192.168.1.104',
+          netmask: '255.255.255.0',
+          family: 'IPv4',
+          mac: 'dc:71:96:dc:70:58',
+          internal: false,
+          cidr: '192.168.1.104/24',
+        },
+      ],
+      'vEthernet (WSL)': [
+        {
+          address: '172.23.144.1',
+          netmask: '255.255.240.0',
+          family: 'IPv4',
+          mac: '00:15:5d:17:fa:95',
+          internal: false,
+          cidr: '172.23.144.1/20',
+        },
+      ],
+      'Loopback Pseudo-Interface 1': [
+        {
+          address: '127.0.0.1',
+          netmask: '255.0.0.0',
+          family: 'IPv4',
+          mac: '00:00:00:00:00:00',
+          internal: true,
+          cidr: '127.0.0.1/8',
+        },
+      ],
+    }
+
+    const lanAddrs = resolvePhysicalLanAddresses(3090, mockInterfaces)
+    expect(lanAddrs).toHaveLength(1)
+    expect(lanAddrs[0]?.name).toBe('WLAN 3')
+    expect(lanAddrs[0]?.ip).toBe('192.168.1.104')
+    expect(lanAddrs[0]?.url).toBe('http://192.168.1.104:3090')
+  })
+
+  it('falls back to non-internal IPv4 when all adapters are virtual (cloud VM scenario)', () => {
+    const mockInterfaces: NodeJS.Dict<NetworkInterfaceInfo[]> = {
+      'eth0 (container)': [
+        {
+          address: '10.0.0.5',
+          netmask: '255.255.255.0',
+          family: 'IPv4',
+          mac: '52:54:00:12:34:56',
+          internal: false,
+          cidr: '10.0.0.5/24',
+        },
+      ],
+    }
+
+    const lanAddrs = resolvePhysicalLanAddresses(3090, mockInterfaces)
+    expect(lanAddrs).toHaveLength(1)
+    expect(lanAddrs[0]?.ip).toBe('10.0.0.5')
+    expect(lanAddrs[0]?.url).toBe('http://10.0.0.5:3090')
   })
 })

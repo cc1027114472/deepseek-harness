@@ -21,6 +21,7 @@ import {
   createAuthInterceptor,
   createUpgradeAuthInterceptor,
 } from './auth-guard.ts'
+import { resolvePhysicalLanAddresses } from './lan-discovery.ts'
 import type { TunnelConfig, TunnelService, TunnelStatus } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -277,15 +278,8 @@ export class TunnelServiceImpl extends Service implements TunnelService {
   }
 
   async install(): Promise<TunnelStatus> {
-    const info = await installCloudflared()
-    const current = this.runner.getStatus()
-    const result: TunnelStatus = {
-      ...current,
-      installed: info.installed,
-    }
-    if (info.version !== undefined) result.version = info.version
-    if (this.activeToken !== undefined) result.authToken = this.activeToken
-    return result
+    await installCloudflared()
+    return this.getStatus()
   }
 
   async start(overrideConfig?: Partial<TunnelConfig>): Promise<TunnelStatus> {
@@ -296,13 +290,15 @@ export class TunnelServiceImpl extends Service implements TunnelService {
     if (this.activeToken !== undefined) {
       merged.authToken = this.activeToken
     }
-    return this.runner.start(merged)
+    await this.runner.start(merged)
+    return this.getStatus()
   }
 
   async stop(): Promise<TunnelStatus> {
     this.unregisterTrustedHost?.()
     this.unregisterTrustedHost = undefined
-    return this.runner.stop()
+    await this.runner.stop()
+    return this.getStatus()
   }
 
   getStatus(): TunnelStatus {
@@ -311,6 +307,8 @@ export class TunnelServiceImpl extends Service implements TunnelService {
     if (this.activeToken !== undefined) {
       result.authToken = this.activeToken
     }
+    const actualPort = this.currentConfig.port ?? 3090
+    result.lanAddresses = resolvePhysicalLanAddresses(actualPort)
     return result
   }
 
