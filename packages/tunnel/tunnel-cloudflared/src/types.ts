@@ -49,6 +49,8 @@ export interface TunnelService {
   stop(): Promise<TunnelStatus>
   /** Get current tunnel status. */
   getStatus(): TunnelStatus
+  /** Set and persist a custom authentication token/password. */
+  setAuthToken(token: string): Promise<TunnelStatus>
   /** Validate an access token from an external visitor. */
   validateToken(token: string | undefined): boolean
 }

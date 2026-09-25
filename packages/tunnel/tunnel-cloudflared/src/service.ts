@@ -1,10 +1,14 @@
 /**
- * Cordis Service implementation for Cloudflare Tunnel.
+ * Cordis Service implementation for Cloudflare Tunnel and Remote Access Auth.
  * @module @deepseek-ai/dsh-tunnel-cloudflared/service
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { Duplex } from 'node:stream'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { dirname } from 'node:path'
 import { Context, Service } from '@deepseek-ai/cordis'
+import { dshHomePath } from '@deepseek-ai/dsh-home-paths'
 import {
   checkInstalled,
   installCloudflared,
@@ -14,6 +18,8 @@ import {
   generateAuthToken,
   isLoopbackHost,
   extractToken,
+  createAuthInterceptor,
+  createUpgradeAuthInterceptor,
 } from './auth-guard.ts'
 import type { TunnelConfig, TunnelService, TunnelStatus } from './types.ts'
 
@@ -32,6 +38,8 @@ interface WebServerLike {
     path: string
     handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>
   }): () => void
+  registerInterceptor?(interceptor: (req: IncomingMessage, res: ServerResponse) => boolean | Promise<boolean>): () => void
+  registerUpgradeInterceptor?(interceptor: (req: IncomingMessage, socket: Duplex, head: Buffer) => boolean | Promise<boolean>): () => void
 }
 
 interface HostConnectionLike {
@@ -49,6 +57,33 @@ function sendJson(res: ServerResponse, status: number, data: unknown): void {
   res.end(JSON.stringify(data))
 }
 
+/** Load persisted auth token from ~/.dsh/tunnel-auth.json */
+function loadPersistedToken(): string | undefined {
+  try {
+    const authFile = dshHomePath('tunnel-auth.json')
+    if (existsSync(authFile)) {
+      const data = JSON.parse(readFileSync(authFile, 'utf8'))
+      if (typeof data?.authToken === 'string' && data.authToken.trim() !== '') {
+        return data.authToken.trim()
+      }
+    }
+  } catch {
+    // Ignore read/parse error
+  }
+  return undefined
+}
+
+/** Save auth token to ~/.dsh/tunnel-auth.json */
+function persistToken(token: string): void {
+  try {
+    const authFile = dshHomePath('tunnel-auth.json')
+    mkdirSync(dirname(authFile), { recursive: true })
+    writeFileSync(authFile, JSON.stringify({ authToken: token }, null, 2), 'utf8')
+  } catch {
+    // Ignore write failure
+  }
+}
+
 /**
  * Tunnel service registered on the Cordis Context as `ctx.tunnel`.
  */
@@ -60,7 +95,8 @@ export class TunnelServiceImpl extends Service implements TunnelService {
 
   constructor(ctx: Context, config: TunnelConfig = {}) {
     super(ctx, 'tunnel')
-    const actualPort = (ctx as any).webStartup?.port ?? config.port ?? 3090
+    const webStartup = (ctx as unknown as { webStartup?: { port?: number } }).webStartup
+    const actualPort = webStartup?.port ?? config.port ?? 3090
     this.currentConfig = {
       port: actualPort,
       mode: 'quick',
@@ -68,11 +104,24 @@ export class TunnelServiceImpl extends Service implements TunnelService {
       ...config,
     }
 
-    // Initialize or generate authentication token
-    this.activeToken =
-      config.authToken === 'auto' || !config.authToken
-        ? generateAuthToken()
-        : config.authToken
+    // Initialize authentication token with priority:
+    // 1. Environment variable (DSH_TUNNEL_AUTH_TOKEN / DSH_WEB_PASSWORD)
+    // 2. Persisted token in ~/.dsh/tunnel-auth.json
+    // 3. Plugin config (if explicit)
+    // 4. Auto-generated cryptographically secure token
+    const envToken = process.env.DSH_TUNNEL_AUTH_TOKEN || process.env.DSH_WEB_PASSWORD
+    const persisted = loadPersistedToken()
+    if (envToken && envToken.trim() !== '') {
+      this.activeToken = envToken.trim()
+    } else if (persisted) {
+      this.activeToken = persisted
+    } else if (config.authToken && config.authToken !== 'auto') {
+      this.activeToken = config.authToken
+      persistToken(this.activeToken)
+    } else {
+      this.activeToken = generateAuthToken()
+      persistToken(this.activeToken)
+    }
 
     this.runner = new CloudflaredRunner((status) => {
       // Dynamic link with connection trusted hosts fence
@@ -97,8 +146,8 @@ export class TunnelServiceImpl extends Service implements TunnelService {
     // Perform background check on installed facts
     this.runner.refreshInstalled().catch(() => {})
 
-    // Register HTTP API endpoint if webServer service is available
-    this.registerHttpRoutes()
+    // Register HTTP routes and global interceptors if webServer service is available
+    this.registerWebServerIntegration()
 
     // Auto start if enabled in config
     if (this.currentConfig.enabled) {
@@ -115,12 +164,28 @@ export class TunnelServiceImpl extends Service implements TunnelService {
     }, 'tunnel-cloudflared: shutdown runner')
   }
 
-  private registerHttpRoutes(): void {
-    // Dynamically attach when webServer is present
+  private registerWebServerIntegration(): void {
     this.ctx.inject(['webServer'], (webCtx) => {
       const webServer = webCtx.get('webServer') as WebServerLike | undefined
       if (!webServer) return
 
+      // Register global interceptors for non-loopback clients
+      const registerInterceptor = webServer.registerInterceptor?.bind(webServer)
+      if (registerInterceptor) {
+        webCtx.effect(
+          () => registerInterceptor(createAuthInterceptor(() => this.activeToken)),
+          'tunnel-cloudflared: global auth interceptor',
+        )
+      }
+      const registerUpgradeInterceptor = webServer.registerUpgradeInterceptor?.bind(webServer)
+      if (registerUpgradeInterceptor) {
+        webCtx.effect(
+          () => registerUpgradeInterceptor(createUpgradeAuthInterceptor(() => this.activeToken)),
+          'tunnel-cloudflared: global upgrade auth interceptor',
+        )
+      }
+
+      // Register dedicated /api/tunnel management endpoints
       const route = {
         kind: 'prefix' as const,
         path: '/api/tunnel',
@@ -135,7 +200,7 @@ export class TunnelServiceImpl extends Service implements TunnelService {
             return
           }
 
-          // Authenticate remote visitors
+          // Double check authentication for non-loopback visitors
           const host = req.headers.host ?? ''
           if (!isLoopbackHost(host)) {
             const token = extractToken(req)
@@ -172,9 +237,27 @@ export class TunnelServiceImpl extends Service implements TunnelService {
               return
             }
 
+            if (pathname === '/api/tunnel/set-token' && req.method === 'POST') {
+              let body = ''
+              for await (const chunk of req) {
+                body += chunk
+              }
+              const parsed = JSON.parse(body || '{}')
+              if (typeof parsed.token !== 'string' || parsed.token.trim() === '') {
+                sendJson(res, 400, { error: '参数 token 必须为非空字符串' })
+                return
+              }
+              const status = await this.setAuthToken(parsed.token.trim())
+              sendJson(res, 200, status)
+              return
+            }
+
             if (pathname === '/api/tunnel/reset-token' && req.method === 'POST') {
               this.activeToken = generateAuthToken()
-              sendJson(res, 200, this.getStatus())
+              persistToken(this.activeToken)
+              const status = this.getStatus()
+              this.ctx.emit('tunnel/status', status)
+              sendJson(res, 200, status)
               return
             }
 
@@ -229,6 +312,18 @@ export class TunnelServiceImpl extends Service implements TunnelService {
       result.authToken = this.activeToken
     }
     return result
+  }
+
+  async setAuthToken(token: string): Promise<TunnelStatus> {
+    const trimmed = token.trim()
+    if (!trimmed) {
+      throw new Error('访问密码/口令不能为空')
+    }
+    this.activeToken = trimmed
+    persistToken(this.activeToken)
+    const status = this.getStatus()
+    this.ctx.emit('tunnel/status', status)
+    return status
   }
 
   validateToken(token: string | undefined): boolean {
