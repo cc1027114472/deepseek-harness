@@ -326,6 +326,31 @@ describe('AppFrame — narrow-viewport auto-collapse', () => {
     act(() => { fireResize?.(); vi.advanceTimersByTime(20) })
     expect(tracks(frame)).toEqual([400, 0])
   })
+
+  it('session switch automatically collapses expanded sidebar when narrow', () => {
+    frameWidth = 980
+    const { frame, instance, rerenderFrame } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    expect(tracks(frame)).toEqual([280, 0])
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(false)
+
+    selectedSession.current = 's-other' as SessionId
+    rerenderFrame()
+    expect(tracks(frame)).toEqual([SIDEBAR_COLLAPSED, 0])
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
+  })
+
+  it('clicking center column collapses expanded sidebar when narrow', () => {
+    frameWidth = 980
+    const { frame, instance, getByTestId } = mountFrame()
+    act(() => { instance.actions.toggleSidebar() })
+    expect(tracks(frame)).toEqual([280, 0])
+
+    const centerCol = getByTestId('center-content').parentElement!
+    act(() => { centerCol.click() })
+    expect(tracks(frame)).toEqual([SIDEBAR_COLLAPSED, 0])
+    expect(frame.hasAttribute('data-sidebar-collapsed')).toBe(true)
+  })
 })
 
 describe('AppFrame — guard branches', () => {
