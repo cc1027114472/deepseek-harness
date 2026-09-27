@@ -289,8 +289,8 @@ describe('compact configuration and defaults', () => {
     const resolved = resolveConfig({})
 
     expect(resolved).toEqual({
-      thresholdRatio: 0.8,
-      retainRatio: 0.16,
+      thresholdRatio: 0.25,
+      retainRatio: 0.05,
       summarizationProvider: '',
       summarizationModel: '',
       maxTokens: 8192,
@@ -308,14 +308,14 @@ describe('compact configuration and defaults', () => {
     })
     expect(thresholdOnly).toMatchObject({
       thresholdRatio: 0.5,
-      retainRatio: 0.16,
+      retainRatio: 0.05,
     })
 
     const retentionOnly = resolveConfig({
       retainTokens: 70,
     })
     expect(retentionOnly).toMatchObject({
-      thresholdRatio: 0.8,
+      thresholdRatio: 0.25,
       retainTokens: 70,
     })
     expect(retentionOnly).not.toHaveProperty('retainRatio')
@@ -424,8 +424,8 @@ describe('compact configuration and defaults', () => {
       [{ summarizationModel: '' }, /must be set together/],
       [{ thresholdRatio: 0 }, /number in \(0, 1\]/],
       [{ thresholdRatio: 1.1 }, /number in \(0, 1\]/],
-      [{ retainRatio: 0.9 }, /retainRatio \(0.9\) must be less than the resolved thresholdRatio \(0.8\)/],
-      [{ thresholdRatio: 0.1 }, /retainRatio \(0.16\) must be less than the resolved thresholdRatio \(0.1\)/],
+      [{ retainRatio: 0.9 }, /retainRatio \(0.9\) must be less than the resolved thresholdRatio \(0.25\)/],
+      [{ thresholdRatio: 0.04 }, /retainRatio \(0.05\) must be less than the resolved thresholdRatio \(0.04\)/],
       [{ retainTokens: -1 }, /non-negative integer/],
       [{ retainRatio: 0.2, retainTokens: 100 }, /mutually exclusive/],
       [{ modelPolicies: {} }, /modelPolicies must be an array/],
@@ -449,12 +449,12 @@ describe('compact configuration and defaults', () => {
       }, /modelPolicies\[0\].*must be set together/],
       [{ modelPolicies: [{ provider: MODEL, model: MODEL, retainRatio: 0.2, retainTokens: 100 }] }, /mutually exclusive/],
       [
-        { modelPolicies: [{ provider: MODEL, model: MODEL, thresholdRatio: 0.1 }] },
-        /modelPolicies\[0\]: retainRatio \(0.16\).*thresholdRatio \(0.1\)/,
+        { modelPolicies: [{ provider: MODEL, model: MODEL, thresholdRatio: 0.04 }] },
+        /modelPolicies\[0\]: retainRatio \(0.05\).*thresholdRatio \(0.04\)/,
       ],
       [
         { modelPolicies: [{ provider: MODEL, model: MODEL, retainRatio: 0.9 }] },
-        /modelPolicies\[0\]: retainRatio \(0.9\).*thresholdRatio \(0.8\)/,
+        /modelPolicies\[0\]: retainRatio \(0.9\).*thresholdRatio \(0.25\)/,
       ],
       [{ modelPolicies: [{ provider: MODEL, model: MODEL }, { provider: MODEL, model: MODEL }] }, /duplicate model policy/],
       [{ models: { [MODEL]: { retainTokens: 10 } } }, /BasicCompactionConfig: unknown key "models"/],

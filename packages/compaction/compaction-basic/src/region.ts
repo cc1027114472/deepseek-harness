@@ -205,6 +205,7 @@ export async function compactSurfaceRegion(
       agent,
       compactionId,
       options.sourceCommandId,
+      options.owner !== null,
       signal,
     )
     if (options.owner === null) signal?.throwIfAborted()
@@ -363,6 +364,7 @@ async function summarizeCompaction(
   agent: Agent,
   compactionId: CompactionResult['compactionId'],
   sourceCommandId: CommandId | undefined,
+  requireShrink: boolean,
   signal?: AbortSignal,
 ): Promise<SummarizedCompaction> {
   const summaryResult = await dependencies.summarize(prepared.input, agent, signal)
@@ -371,7 +373,7 @@ async function summarizeCompaction(
     source: compactCheckpointSource(compactionId, sourceCommandId),
   })
   const framedSummaryTokenCount = dependencies.meter.estimateMessage(checkpointMessage)
-  if (framedSummaryTokenCount >= prepared.shadowedTokenCount) {
+  if (requireShrink && framedSummaryTokenCount >= prepared.shadowedTokenCount) {
     throw new Error(
       `summary is not smaller than the shadowed content (${framedSummaryTokenCount} estimated framed tokens >= ${prepared.shadowedTokenCount})`,
     )
