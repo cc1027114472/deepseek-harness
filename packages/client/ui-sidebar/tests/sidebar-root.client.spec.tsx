@@ -104,7 +104,7 @@ describe('SidebarRoot shell', () => {
     />)
 
     expect(screen.getByText('魔丸')).toBeTruthy()
-    expect(screen.getByText('v2.1.0')).toBeTruthy()
+    expect(screen.getByText('v2.1.1')).toBeTruthy()
     expect(container.querySelector('svg')).not.toBeNull()
   })
 
