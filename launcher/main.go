@@ -157,7 +157,7 @@ func checkPortActive(port int) bool {
 }
 
 func main() {
-	portFlag := flag.Int("port", 0, "Web server port (default: 3090, auto-detects 3090 or 3080 if running)")
+	portFlag := flag.Int("port", 0, "Web server port (default: 3080)")
 	noOpenFlag := flag.Bool("no-open", false, "Do not auto-open browser on launch")
 	flag.Parse()
 
@@ -165,13 +165,10 @@ func main() {
 	port := *portFlag
 
 	if port == 0 {
-		// Auto-detection: prefer 3090, but fallback to 3080 if an instance is already running there
-		if checkPortActive(3090) {
-			port = 3090
-		} else if checkPortActive(3080) {
+		if checkPortActive(3080) {
 			port = 3080
 		} else {
-			port = 3090
+			port = 3080
 		}
 	}
 
