@@ -286,7 +286,6 @@ describe('tunnel-cloudflared: lan-discovery', () => {
     expect(lanAddrs[0]?.ip).toBe('10.0.0.5')
     expect(lanAddrs[0]?.url).toBe('http://10.0.0.5:3090')
   })
-
   it('resolves valid binary path', () => {
     const binPath = getBinaryPath()
     expect(binPath).toBeTruthy()
@@ -294,4 +293,3 @@ describe('tunnel-cloudflared: lan-discovery', () => {
     expect(binPath.endsWith(isWin ? 'cloudflared.exe' : 'cloudflared')).toBe(true)
   })
 })
-
