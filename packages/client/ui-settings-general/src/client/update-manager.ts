@@ -23,7 +23,7 @@ export interface DownloadProgress {
 
 let globalUpdateInfo: UpdateInfo = {
   hasUpdate: false,
-  currentVersion: '2.1.2',
+  currentVersion: '2.1.3',
 }
 
 let globalProgress: DownloadProgress = {
