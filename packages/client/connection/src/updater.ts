@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 
-export const CURRENT_VERSION = '2.1.1'
+export const CURRENT_VERSION = '2.1.2'
 
 export interface UpdateManifest {
   version: string
@@ -319,8 +319,8 @@ export function applyAndRestart(): { success: boolean; error?: string } {
   }
 
   try {
-    // Launch installer in upgrade mode
-    const child = spawn(filePath, ['--upgrade'], {
+    // Launch installer in silent upgrade mode
+    const child = spawn(filePath, ['--upgrade', '--silent'], {
       detached: true,
       stdio: 'ignore',
     })
