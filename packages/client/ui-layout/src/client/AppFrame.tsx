@@ -24,7 +24,7 @@ export type AppFrameProps =
   & PropsStore<ReturnType<typeof createLayoutStore>>
 
 /** Center column grid item (session-body building block). */
-function CenterColumn(props: { children?: ReactNode; onClick?: () => void }) {
+function CenterColumn(props: { children?: ReactNode; onClick?: (() => void) | undefined }) {
   return <div className={css.centerCol} onClick={props.onClick}>{props.children}</div>
 }
 
