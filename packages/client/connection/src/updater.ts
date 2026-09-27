@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 
-export const CURRENT_VERSION = '2.1.3'
+export const CURRENT_VERSION = '2.1.4'
 
 export interface UpdateManifest {
   version: string
