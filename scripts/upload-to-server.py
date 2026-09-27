@@ -73,7 +73,10 @@ def upload_release(version_tag=None):
         f"chown -R www-data:www-data {REMOTE_DIR} && chmod -R 644 {REMOTE_DIR}/* && chmod 755 {REMOTE_DIR} && "
         f"chown -R 1000:1000 /root/sub2api/deploy/data/public/downloads && chmod -R 755 /root/sub2api/deploy/data/public/downloads"
     )
-    ssh.exec_command(cmd)
+    stdin, stdout, stderr = ssh.exec_command(cmd)
+    exit_status = stdout.channel.recv_exit_status()
+    if exit_status != 0:
+        print(f"Post-deploy command failed with status {exit_status}: {stderr.read().decode()}")
     ssh.close()
 
     print("\n" + "=" * 50)
