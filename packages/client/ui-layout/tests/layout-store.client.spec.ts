@@ -74,6 +74,21 @@ describe('createLayoutStore', () => {
     expect(store.getSnapshot().narrowExpanded).toBe(false)
   })
 
+  it('closeSidebarNarrow closes expanded sidebar only when narrow', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.setNarrow(true)
+    actions.toggleSidebar()
+    expect(store.getSnapshot().narrowExpanded).toBe(true)
+    actions.closeSidebarNarrow()
+    expect(store.getSnapshot().narrowExpanded).toBe(false)
+
+    // When wide, closeSidebarNarrow is a no-op and does not touch sidebar width
+    actions.setNarrow(false)
+    actions.setSidebar(350)
+    actions.closeSidebarNarrow()
+    expect(store.getSnapshot().sidebar).toBe(350)
+  })
+
   it('openDetails uses the contract default, preserves an open width, and closeDetails zeroes', () => {
     const { store, actions } = createLayoutStore().create()
     actions.openDetails()

@@ -283,6 +283,11 @@
 
     - id: compaction-basic
       name: '@deepseek-ai/dsh-compaction-basic'
+      config:
+        thresholdRatio: 0.25
+        retainRatio: 0.05
+        compactionRetries: 2
+        maxOverflowRetries: 2
 
     # Human `/compact`: one useful reduction below the automatic threshold. Backend
     # independent, so it follows whichever compaction service this leaf mounts.
