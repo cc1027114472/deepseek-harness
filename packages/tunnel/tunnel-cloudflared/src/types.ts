@@ -11,7 +11,7 @@ export interface LanAddressInfo {
   name: string
   /** IPv4 address literal (e.g. "192.168.1.104"). */
   ip: string
-  /** Ready-to-use HTTP URL with port (e.g. "http://192.168.1.104:3090"). */
+  /** Ready-to-use HTTP URL with port (e.g. "http://192.168.1.104:3080"). */
   url: string
 }
 

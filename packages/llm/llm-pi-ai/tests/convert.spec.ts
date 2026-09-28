@@ -830,6 +830,10 @@ describe('mapStopReason / mapUsage', () => {
       stopReason: 'error',
       errorMessage: '<!DOCTYPE html><html><head><title>502 Bad Gateway</title></head><body><div class="md:border-gray-400">Bad Gateway</div></body></html>',
     }))).toMatchObject({ kind: 'error', failure: { code: 'SERVER' } })
+    expect(mapStopReason(assistant({
+      stopReason: 'error',
+      errorMessage: '<!DOCTYPE html><html><head><title>ukapi.cc | 520: Web server is returning an unknown error</title></head><body><div class="md:border-gray-400">Error code 520</div></body></html>',
+    }))).toMatchObject({ kind: 'error', failure: { code: 'SERVER' } })
   })
 
   it.each([

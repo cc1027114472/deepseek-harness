@@ -144,7 +144,7 @@ describe('web command-line provider', () => {
     expect(observed.readerConfig).toEqual({
       host: '0.0.0.0',
       openBrowser: true,
-      port: 3090,
+      port: 3080,
       trustedHosts: [],
     })
     expect(observed.exits).toEqual([])
