@@ -37,28 +37,44 @@ export function mapUsage(usage: PiUsage): TokenUsage {
 // If pi-ai ever forwards the original Error (or a fetch/dispatcher hook that lets
 // us capture the cause ourselves), classify on `code`/`cause` instead of text.
 function classifyPiAiError(message: string): string {
-  if (/\b(?:401|403)\b/.test(message)) return 'AUTH'
-  if (isQuotaExceededError(message)) return QUOTA_EXCEEDED_CODE
-  if (/\b429\b|rate.?limit/i.test(message)) return 'RATE_LIMIT'
+  try {
+    const parsed = JSON.parse(message)
+    const rawStatus = parsed?.status ?? parsed?.code ?? parsed?.error?.code ?? parsed?.error?.status
+    const status = typeof rawStatus === 'number' ? rawStatus : Number.parseInt(String(rawStatus), 10)
+    if (Number.isInteger(status) && status >= 100 && status <= 599) {
+      if (status === 401 || status === 403) return 'AUTH'
+      if (status === 429) return 'RATE_LIMIT'
+      if (status === 413 || status === 400) return 'INVALID_REQUEST'
+      if (status >= 500) return 'SERVER'
+    }
+  } catch {
+    // Non-JSON error message; proceed with text heuristics.
+  }
+
+  const cleanMessage = message.includes('<') ? message.replace(/<[^>]+>/g, ' ') : message
+
+  if (/\b(?:401|403)\b/.test(cleanMessage)) return 'AUTH'
+  if (isQuotaExceededError(cleanMessage)) return QUOTA_EXCEEDED_CODE
+  if (/\b429\b|rate.?limit/i.test(cleanMessage)) return 'RATE_LIMIT'
   // A rejected request body (gateway or provider size cap): resending the
   // same request cannot succeed, so it is invalid, not transient.
-  if (/\b413\b|failed to buffer the request body:\s*length limit exceeded|payload too large|request body too large/i.test(message)) return 'INVALID_REQUEST'
-  if (/\b400\b|invalid.?request/i.test(message)) return 'INVALID_REQUEST'
-  if (/\b5\d\d\b/.test(message)) return 'SERVER'
-  if (/\btime(?:d)?\s*out\b|timeout/i.test(message)) return 'TIMEOUT'
+  if (/\b413\b|failed to buffer the request body:\s*length limit exceeded|payload too large|request body too large/i.test(cleanMessage)) return 'INVALID_REQUEST'
+  if (/\b400\b|invalid.?request/i.test(cleanMessage)) return 'INVALID_REQUEST'
+  if (/\b5\d\d\b/.test(cleanMessage)) return 'SERVER'
+  if (/\btime(?:d)?\s*out\b|timeout/i.test(cleanMessage)) return 'TIMEOUT'
   // A stream truncated before the provider's terminal event: each pi-ai provider
   // throws its own wording when the wire closes mid-response without a terminal
   // event (`… stream ended before message_stop`, `… before a terminal response
   // event`, `… ended without a terminal event`, `Stream ended without
   // finish_reason`). The connection dropped mid-response, so this is a transport
   // truncation, not a model-level error.
-  if (/stream ended (?:before|without)\b/i.test(message)) return 'TRANSPORT'
-  if (/\b(?:network|connection|socket|fetch)\b|\bECONN[A-Z]+\b/i.test(message)
-    || /\b(?:other side closed|HTTP2 request did not get a response|WebSocket closed unexpectedly)\b/i.test(message)
+  if (/stream ended (?:before|without)\b/i.test(cleanMessage)) return 'TRANSPORT'
+  if (/\b(?:network|connection|socket|fetch)\b|\bECONN[A-Z]+\b/i.test(cleanMessage)
+    || /\b(?:other side closed|HTTP2 request did not get a response|WebSocket closed unexpectedly)\b/i.test(cleanMessage)
     // undici renders a mid-stream socket drop as a bare `terminated` (its
     // `cause` — the real SocketError — was flattened away upstream); Node's
     // stream layer says `Premature close`.
-    || /\bterminated\b|premature close/i.test(message)) {
+    || /\bterminated\b|premature close/i.test(cleanMessage)) {
     return 'TRANSPORT'
   }
   return 'PI_AI_ERROR'
