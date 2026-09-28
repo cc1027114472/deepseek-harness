@@ -178,59 +178,59 @@
     - id: compaction-basic
       name: '@deepseek-ai/dsh-compaction-basic'
       config:
-        # Earlier gate + 1M summarizer. Gemini at overflow cannot summarize on
-        # itself; rt6666 was 404/unpriced — use SenseNova deepseek instead.
-        # Restored from ~/.dsh/.agent-presets/code-early after local .git loss.
-        thresholdRatio: 0.25
-        retainRatio: 0.08
+        # Balanced compaction (Plan A): 55% threshold prevents premature compaction and protects
+        # the 65k summarizer from overflow; 16%-18% retention preserves sufficient recent context.
+
+        thresholdRatio: 0.55
+        retainRatio: 0.18
         summarizationProvider: ririxin
         summarizationModel: deepseek-v4-flash
         maxTokens: 65536
         modelPolicies:
           - provider: ririxin
             model: deepseek-v4-flash
-            thresholdRatio: 0.25
-            retainRatio: 0.06
+            thresholdRatio: 0.55
+            retainRatio: 0.16
           - provider: rrx2
             model: deepseek-v4-flash
-            thresholdRatio: 0.25
-            retainRatio: 0.06
+            thresholdRatio: 0.55
+            retainRatio: 0.16
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: aaaa
             model: gemini-3.7-flash-high
-            thresholdRatio: 0.45
-            retainRatio: 0.08
+            thresholdRatio: 0.55
+            retainRatio: 0.18
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: aaaa
             model: gemini-3.8-flash-high
-            thresholdRatio: 0.45
-            retainRatio: 0.08
+            thresholdRatio: 0.55
+            retainRatio: 0.18
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: aaaa
             model: claude-sonnet-4-6
-            thresholdRatio: 0.45
-            retainRatio: 0.08
+            thresholdRatio: 0.55
+            retainRatio: 0.18
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: bbbb
             model: claude-sonnet-4-6-thinking
-            thresholdRatio: 0.45
-            retainRatio: 0.08
+            thresholdRatio: 0.55
+            retainRatio: 0.18
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: ririxin
             model: sensenova-6.7-flash-lite
-            thresholdRatio: 0.45
-            retainRatio: 0.08
+            thresholdRatio: 0.55
+            retainRatio: 0.18
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: rrx2
             model: sensenova-6.7-flash-lite
-            thresholdRatio: 0.45
-            retainRatio: 0.08
+            thresholdRatio: 0.55
+            retainRatio: 0.18
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
 
