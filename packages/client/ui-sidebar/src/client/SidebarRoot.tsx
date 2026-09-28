@@ -193,10 +193,10 @@ export function SidebarRoot({
                 {updateInfo.hasUpdate ? (
                   <>
                     <span className={css.updateDot} />
-                    <span>v{updateInfo.latestVersion || '2.1.4'} NEW</span>
+                    <span>v{updateInfo.latestVersion || '2.1.5'} NEW</span>
                   </>
                 ) : (
-                  `v${updateInfo.currentVersion || '2.1.4'}`
+                  `v${updateInfo.currentVersion || '2.1.5'}`
                 )}
               </span>
             </span>

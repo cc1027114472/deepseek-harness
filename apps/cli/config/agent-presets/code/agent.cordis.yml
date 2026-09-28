@@ -179,62 +179,11 @@
       name: '@deepseek-ai/dsh-compaction-basic'
       config:
         # Balanced compaction: 50% threshold prevents premature compaction and protects
-        # the 65k summarizer from overflow; 12% retention preserves sufficient recent context.
-
+        # the summarizer from overflow; 12% retention preserves sufficient recent context.
         thresholdRatio: 0.50
         retainRatio: 0.12
         compactionRetries: 2
         maxOverflowRetries: 2
-        summarizationProvider: ririxin
-        summarizationModel: deepseek-v4-flash
-        maxTokens: 65536
-        modelPolicies:
-          - provider: ririxin
-            model: deepseek-v4-flash
-            thresholdRatio: 0.50
-            retainRatio: 0.12
-          - provider: rrx2
-            model: deepseek-v4-flash
-            thresholdRatio: 0.50
-            retainRatio: 0.12
-            summarizationProvider: ririxin
-            summarizationModel: deepseek-v4-flash
-          - provider: aaaa
-            model: gemini-3.7-flash-high
-            thresholdRatio: 0.50
-            retainRatio: 0.12
-            summarizationProvider: ririxin
-            summarizationModel: deepseek-v4-flash
-          - provider: aaaa
-            model: gemini-3.8-flash-high
-            thresholdRatio: 0.50
-            retainRatio: 0.12
-            summarizationProvider: ririxin
-            summarizationModel: deepseek-v4-flash
-          - provider: aaaa
-            model: claude-sonnet-4-6
-            thresholdRatio: 0.50
-            retainRatio: 0.12
-            summarizationProvider: ririxin
-            summarizationModel: deepseek-v4-flash
-          - provider: bbbb
-            model: claude-sonnet-4-6-thinking
-            thresholdRatio: 0.50
-            retainRatio: 0.12
-            summarizationProvider: ririxin
-            summarizationModel: deepseek-v4-flash
-          - provider: ririxin
-            model: sensenova-6.7-flash-lite
-            thresholdRatio: 0.50
-            retainRatio: 0.12
-            summarizationProvider: ririxin
-            summarizationModel: deepseek-v4-flash
-          - provider: rrx2
-            model: sensenova-6.7-flash-lite
-            thresholdRatio: 0.50
-            retainRatio: 0.12
-            summarizationProvider: ririxin
-            summarizationModel: deepseek-v4-flash
 
     - id: command-compact
       name: '@deepseek-ai/dsh-command-compact'
