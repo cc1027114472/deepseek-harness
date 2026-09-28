@@ -91,10 +91,10 @@ if (-not $lanIps) {
 }
 
 if ($lanIps) {
-  $lanMsg = ($lanIps | ForEach-Object { "http://{0}:3090" -f $_ }) -join ', '
-  Write-Log ("Starting web UI at http://127.0.0.1:3090 (LAN: {0})" -f $lanMsg)
+  $lanMsg = ($lanIps | ForEach-Object { "http://{0}:3080" -f $_ }) -join ', '
+  Write-Log ("Starting web UI at http://127.0.0.1:3080 (LAN: {0})" -f $lanMsg)
 } else {
-  Write-Log 'Starting web UI at http://127.0.0.1:3090'
+  Write-Log 'Starting web UI at http://127.0.0.1:3080'
 }
 Write-Log 'Close this window or press Ctrl+C to stop.'
 
