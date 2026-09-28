@@ -120,7 +120,7 @@
       config:
         enabled: false
         mode: quick
-        port: !!js ctx.webStartup.port ?? 3080
+        port: !!js ctx.webStartup.port ?? 3090
 
     # ── layer 2: transport/service ──────────────────────────────────────────────
 
@@ -132,7 +132,7 @@
       inject: [webStartup]
       config:
         host: !!js ctx.webStartup.host ?? '0.0.0.0'
-        port: !!js ctx.webStartup.port ?? 3080
+        port: !!js ctx.webStartup.port ?? 3090
 
     # Web glue owned by this bundle: resolves the built frontend dist (an
     # assembly fact of dsh-web-app, never user config), mounts the

@@ -18,7 +18,7 @@ plugins:
   tunnel-cloudflared:
     enabled: false         # Auto-start on boot
     mode: quick            # 'quick' or 'auth'
-    port: 3080             # Target local port
+    port: 3090             # Target local port
     useHttp2: true         # HTTP/2 protocol for network compatibility
     authToken: auto        # 'auto' generates a secure random token
 ```

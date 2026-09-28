@@ -97,7 +97,7 @@ export class TunnelServiceImpl extends Service implements TunnelService {
   constructor(ctx: Context, config: TunnelConfig = {}) {
     super(ctx, 'tunnel')
     const webStartup = (ctx as unknown as { webStartup?: { port?: number } }).webStartup
-    const actualPort = webStartup?.port ?? config.port ?? 3080
+    const actualPort = webStartup?.port ?? config.port ?? 3090
     this.currentConfig = {
       port: actualPort,
       mode: 'quick',
@@ -307,7 +307,7 @@ export class TunnelServiceImpl extends Service implements TunnelService {
     if (this.activeToken !== undefined) {
       result.authToken = this.activeToken
     }
-    const actualPort = this.currentConfig.port ?? 3080
+    const actualPort = this.currentConfig.port ?? 3090
     result.lanAddresses = resolvePhysicalLanAddresses(actualPort)
     return result
   }
