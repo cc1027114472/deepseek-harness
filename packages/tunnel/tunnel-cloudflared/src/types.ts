@@ -11,7 +11,7 @@ export interface LanAddressInfo {
   name: string
   /** IPv4 address literal (e.g. "192.168.1.104"). */
   ip: string
-  /** Ready-to-use HTTP URL with port (e.g. "http://192.168.1.104:3080"). */
+  /** Ready-to-use HTTP URL with port (e.g. "http://192.168.1.104:3090"). */
   url: string
 }
 
@@ -39,7 +39,7 @@ export interface TunnelConfig {
   enabled?: boolean
   /** Tunnel mode: quick (auto temporary URL) or auth (Cloudflare Named Tunnel with token). */
   mode?: TunnelMode
-  /** Target local port to expose. Default is 3080. */
+  /** Target local port to expose. Default is 3090. */
   port?: number
   /** Named tunnel token when mode is 'auth'. */
   token?: string

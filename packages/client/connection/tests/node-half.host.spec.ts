@@ -135,7 +135,7 @@ describe('connection node half', () => {
     const { routes, dispose } = await mounted()
     for (const path of [MUX_EVENTS_PATH, HOST_EVENTS_PATH]) {
       const { response, state } = fakeResponse()
-      await routes[0]!.handler(fakeRequest({ host: '127.0.0.1:3080' }, path), response)
+      await routes[0]!.handler(fakeRequest({ host: '127.0.0.1:3090' }, path), response)
       expect(state.status).toBe(426)
       expect(state.body).toBe('upgrade required')
     }
@@ -199,21 +199,21 @@ describe('connection node half', () => {
   })
 
   it('passes loopback and declared-authority requests through to the bridge', async () => {
-    const { routes, dispose } = await mounted({ trustedHosts: ['harness.example:3080', '192.168.1.5'] })
+    const { routes, dispose } = await mounted({ trustedHosts: ['harness.example:3090', '192.168.1.5'] })
     // Loopback, no browser markers (curl shape): the fence passes; the carrier
     // answers 404 for a GET unary path — proof the bridge ran.
     const loopback = fakeResponse()
-    await routes[0]!.handler(fakeRequest({ host: '127.0.0.1:3080' }), loopback.response)
+    await routes[0]!.handler(fakeRequest({ host: '127.0.0.1:3090' }), loopback.response)
     expect(loopback.state.status).toBe(404)
     // An all-interfaces composition derives port-less LAN IP literals, which
     // pass markerless curl on any port.
     const lan = fakeResponse()
-    await routes[0]!.handler(fakeRequest({ host: '192.168.1.5:3080' }), lan.response)
+    await routes[0]!.handler(fakeRequest({ host: '192.168.1.5:3090' }), lan.response)
     expect(lan.state.status).toBe(404)
     // Declared public authority, same-origin browser shape.
     const declared = fakeResponse()
     await routes[0]!.handler(fakeRequest({
-      host: 'harness.example:3080', origin: 'http://harness.example:3080', 'sec-fetch-site': 'same-origin',
+      host: 'harness.example:3090', origin: 'http://harness.example:3090', 'sec-fetch-site': 'same-origin',
     }), declared.response)
     expect(declared.state.status).toBe(404)
     await dispose()
@@ -244,7 +244,7 @@ describe('connection node half', () => {
       payload: { args: { agentId: 'agent-1' } },
     }
     const result = fakeResponse()
-    await route!.handler(fakePost({ host: '127.0.0.1:3080' }, '/rpc/goals/create', request), result.response)
+    await route!.handler(fakePost({ host: '127.0.0.1:3090' }, '/rpc/goals/create', request), result.response)
     expect(result.state.status).toBe(200)
     expect(JSON.parse(String(result.state.body))).toEqual({
       type: 'server-response',
@@ -304,7 +304,7 @@ describe('connection node half', () => {
     }
 
     const claimed = fakeResponse()
-    await route.handler(fakePost({ host: '127.0.0.1:3080' }, '/api/goals/create', request), claimed.response)
+    await route.handler(fakePost({ host: '127.0.0.1:3090' }, '/api/goals/create', request), claimed.response)
     expect(JSON.parse(String(claimed.state.body))).toEqual({
       type: 'server-response',
       rpcId: 'rpc-shared',
@@ -321,12 +321,12 @@ describe('connection node half', () => {
     expect(calls).toHaveLength(1)
 
     const unclaimed = fakeResponse()
-    await route.handler(fakeRequest({ host: '127.0.0.1:3080' }, '/api/session.list'), unclaimed.response)
+    await route.handler(fakeRequest({ host: '127.0.0.1:3090' }, '/api/session.list'), unclaimed.response)
     expect(unclaimed.state.status).toBe(404)
 
     await remove()
     const withdrawn = fakeResponse()
-    await route.handler(fakePost({ host: '127.0.0.1:3080' }, '/api/goals/create', request), withdrawn.response)
+    await route.handler(fakePost({ host: '127.0.0.1:3090' }, '/api/goals/create', request), withdrawn.response)
     expect(withdrawn.state.status).toBe(404)
     expect(calls).toHaveLength(1)
 

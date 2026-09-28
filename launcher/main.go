@@ -171,7 +171,7 @@ func parseDeeplinkToWebURL(deeplink string, port int) string {
 }
 
 func main() {
-	portFlag := flag.Int("port", 0, "Web server port (default: 3080)")
+	portFlag := flag.Int("port", 3090, "Web server port (default: 3090)")
 	noOpenFlag := flag.Bool("no-open", false, "Do not auto-open browser on launch")
 	flag.Parse()
 
@@ -182,11 +182,7 @@ func main() {
 	port := *portFlag
 
 	if port == 0 {
-		if checkPortActive(3080) {
-			port = 3080
-		} else {
-			port = 3080
-		}
+		port = 3090
 	}
 
 	serviceURL := fmt.Sprintf("http://127.0.0.1:%d", port)

@@ -23,13 +23,13 @@ describe('tunnel-cloudflared: auth-guard', () => {
 
   it('correctly identifies loopback hostnames', () => {
     expect(isLoopbackHost('localhost')).toBe(true)
-    expect(isLoopbackHost('localhost:3080')).toBe(true)
+    expect(isLoopbackHost('localhost:3090')).toBe(true)
     expect(isLoopbackHost('127.0.0.1')).toBe(true)
     expect(isLoopbackHost('127.0.0.1:8080')).toBe(true)
     expect(isLoopbackHost('::1')).toBe(true)
-    expect(isLoopbackHost('[::1]:3080')).toBe(true)
+    expect(isLoopbackHost('[::1]:3090')).toBe(true)
 
-    expect(isLoopbackHost('192.168.1.100:3080')).toBe(false)
+    expect(isLoopbackHost('192.168.1.100:3090')).toBe(false)
     expect(isLoopbackHost('abc.trycloudflare.com')).toBe(false)
     expect(isLoopbackHost('example.com')).toBe(false)
     expect(isLoopbackHost(undefined)).toBe(false)
@@ -38,14 +38,14 @@ describe('tunnel-cloudflared: auth-guard', () => {
   it('distinguishes local loopback requests from LAN and remote tunnel requests', () => {
     expect(
       isLoopbackRequest({
-        headers: { host: '127.0.0.1:3080' },
+        headers: { host: '127.0.0.1:3090' },
         socket: { remoteAddress: '127.0.0.1' },
       } as unknown as IncomingMessage),
     ).toBe(true)
 
     expect(
       isLoopbackRequest({
-        headers: { host: '192.168.1.100:3080' },
+        headers: { host: '192.168.1.100:3090' },
         socket: { remoteAddress: '192.168.1.50' },
       } as unknown as IncomingMessage),
     ).toBe(false)
@@ -70,7 +70,7 @@ describe('tunnel-cloudflared: auth-guard', () => {
       extractToken({
         url: '/',
         headers: {
-          host: '192.168.1.100:3080',
+          host: '192.168.1.100:3090',
           cookie: 'other=1; dsh_token=my_lan_password; theme=dark',
         },
       } as unknown as IncomingMessage),
@@ -90,7 +90,7 @@ describe('tunnel-cloudflared: auth-guard', () => {
       {
         method: 'GET',
         url: '/',
-        headers: { host: '192.168.1.100:3080' },
+        headers: { host: '192.168.1.100:3090' },
         socket: { remoteAddress: '192.168.1.55' },
       } as unknown as IncomingMessage,
       unauthRes,
@@ -105,7 +105,7 @@ describe('tunnel-cloudflared: auth-guard', () => {
         method: 'GET',
         url: '/api/tunnel/status',
         headers: {
-          host: '192.168.1.100:3080',
+          host: '192.168.1.100:3090',
           cookie: 'dsh_token=lan_secret_123',
         },
         socket: { remoteAddress: '192.168.1.55' },
@@ -140,7 +140,7 @@ describe('tunnel-cloudflared: auth-guard', () => {
   it('middleware passes loopback requests without token', () => {
     const middleware = createAuthMiddleware(() => 'expected_token')
     const req = {
-      headers: { host: '127.0.0.1:3080' },
+      headers: { host: '127.0.0.1:3090' },
       url: '/',
     } as unknown as IncomingMessage
     const res = {} as unknown as ServerResponse
@@ -216,7 +216,7 @@ describe('tunnel-cloudflared: lan-discovery', () => {
     expect(isVirtualInterface('MySpecialAdapter', 'dc:71:96:dc:70:58')).toBe(false)
   })
 
-  it('filters out virtual adapters and returns physical LAN IP with port 3080', () => {
+  it('filters out virtual adapters and returns physical LAN IP with port 3090', () => {
     const mockInterfaces: NodeJS.Dict<NetworkInterfaceInfo[]> = {
       'VMware Network Adapter VMnet1': [
         {
@@ -260,11 +260,11 @@ describe('tunnel-cloudflared: lan-discovery', () => {
       ],
     }
 
-    const lanAddrs = resolvePhysicalLanAddresses(3080, mockInterfaces)
+    const lanAddrs = resolvePhysicalLanAddresses(3090, mockInterfaces)
     expect(lanAddrs).toHaveLength(1)
     expect(lanAddrs[0]?.name).toBe('WLAN 3')
     expect(lanAddrs[0]?.ip).toBe('192.168.1.104')
-    expect(lanAddrs[0]?.url).toBe('http://192.168.1.104:3080')
+    expect(lanAddrs[0]?.url).toBe('http://192.168.1.104:3090')
   })
 
   it('falls back to non-internal IPv4 when all adapters are virtual (cloud VM scenario)', () => {
@@ -281,10 +281,10 @@ describe('tunnel-cloudflared: lan-discovery', () => {
       ],
     }
 
-    const lanAddrs = resolvePhysicalLanAddresses(3080, mockInterfaces)
+    const lanAddrs = resolvePhysicalLanAddresses(3090, mockInterfaces)
     expect(lanAddrs).toHaveLength(1)
     expect(lanAddrs[0]?.ip).toBe('10.0.0.5')
-    expect(lanAddrs[0]?.url).toBe('http://10.0.0.5:3080')
+    expect(lanAddrs[0]?.url).toBe('http://10.0.0.5:3090')
   })
   it('resolves valid binary path', () => {
     const binPath = getBinaryPath()
