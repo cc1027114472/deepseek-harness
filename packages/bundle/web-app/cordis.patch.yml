@@ -121,7 +121,7 @@
       config:
         enabled: false
         mode: quick
-        port: !!js ctx.webStartup.port ?? 3090
+        port: !!js ctx.webStartup.port ?? 3080
 
     # ── layer 2: transport/service ──────────────────────────────────────────────
 

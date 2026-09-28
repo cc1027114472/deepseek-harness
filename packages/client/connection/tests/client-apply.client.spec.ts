@@ -196,7 +196,7 @@ describe('connection client apply', () => {
 
   it('opens one WebSocket per downlink, parses frames, and aborts both without using fetch', async () => {
     ;(globalThis as Win).location = {
-      hostname: 'localhost', search: '', origin: 'http://localhost:3090',
+      hostname: 'localhost', search: '', origin: 'http://localhost:3080',
     }
     ;(globalThis as WebSocketGlobal).WebSocket = FakeWebSocket as unknown as typeof WebSocket
     const fetch = vi.spyOn(globalThis, 'fetch')
@@ -212,8 +212,8 @@ describe('connection client apply', () => {
     const hostFrame = host.next()
     await vi.waitFor(() => { expect(sockets).toHaveLength(2) })
     expect(sockets.map(socket => socket.url)).toEqual([
-      'ws://localhost:3090/api/events.mux',
-      'ws://localhost:3090/api/events.host',
+      'ws://localhost:3080/api/events.mux',
+      'ws://localhost:3080/api/events.host',
     ])
     await vi.waitFor(() => { expect(opened).toEqual(['mux', 'host']) })
 
@@ -269,7 +269,7 @@ describe('connection client apply', () => {
 
   it('closes a WebSocket immediately when its signal was already aborted', async () => {
     ;(globalThis as Win).location = {
-      hostname: 'localhost', search: '', origin: 'http://localhost:3090',
+      hostname: 'localhost', search: '', origin: 'http://localhost:3080',
     }
     ;(globalThis as WebSocketGlobal).WebSocket = FakeWebSocket as unknown as typeof WebSocket
     const client = (await mount()).api

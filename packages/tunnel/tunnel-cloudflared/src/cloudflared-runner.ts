@@ -181,7 +181,7 @@ export class CloudflaredRunner {
     }
 
     const binPath = getBinaryPath()
-    const port = config.port ?? 3090
+    const port = config.port ?? 3080
     const mode = config.mode ?? 'quick'
     const args: string[] = []
 
@@ -252,7 +252,7 @@ export class CloudflaredRunner {
       const proc = this.child
       this.child = null
       proc.kill('SIGTERM')
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await new Promise(resolve => setTimeout(resolve, 300))
       if (!proc.killed) {
         proc.kill('SIGKILL')
       }
