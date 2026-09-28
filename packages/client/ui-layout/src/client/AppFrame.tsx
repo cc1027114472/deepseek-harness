@@ -24,8 +24,8 @@ export type AppFrameProps =
   & PropsStore<ReturnType<typeof createLayoutStore>>
 
 /** Center column grid item (session-body building block). */
-function CenterColumn(props: { children?: ReactNode }) {
-  return <div className={css.centerCol}>{props.children}</div>
+function CenterColumn(props: { children?: ReactNode; onClick?: (() => void) | undefined }) {
+  return <div className={css.centerCol} onClick={props.onClick}>{props.children}</div>
 }
 
 /** Details column grid item; width 0 keeps the subtree mounted (never unmount on close). */
@@ -98,7 +98,9 @@ export function AppFrame({
   const frameRef = useRef<HTMLDivElement | null>(null)
   const [viewport, setViewport] = useState(() => window.innerWidth)
 
+  const currentSessionId = useSessions(s => s.current)
   const lastSession = useRef(detailsSession)
+  const lastSessionId = useRef(currentSessionId)
   useLayoutEffect(() => {
     if (detailsSession === undefined) return
     if (lastSession.current !== undefined && lastSession.current !== detailsSession) {
@@ -106,6 +108,14 @@ export function AppFrame({
     }
     lastSession.current = detailsSession
   }, [actions, detailsSession])
+
+  useLayoutEffect(() => {
+    if (currentSessionId === undefined) return
+    if (lastSessionId.current !== undefined && lastSessionId.current !== currentSessionId) {
+      actions.closeSidebarNarrow()
+    }
+    lastSessionId.current = currentSessionId
+  }, [actions, currentSessionId])
 
   // Track the frame's own box (not the window): rAF-throttled ResizeObserver.
   useEffect(() => {
@@ -187,7 +197,9 @@ export function AppFrame({
             the shell's own pending rendering. The conversation
             is session-maybe; the strict details entry naturally renders
             empty while no session is current. */}
-        <CenterColumn>{renderSlot('conversation', {})}</CenterColumn>
+        <CenterColumn onClick={narrow && panels.narrowExpanded ? () => { actions.closeSidebarNarrow() } : undefined}>
+          {renderSlot('conversation', {})}
+        </CenterColumn>
         <DetailsColumn>{renderSlot('details', {})}</DetailsColumn>
       </>
       <div className={css.overlayLayer} data-shell-overlay>

@@ -183,6 +183,8 @@
 
         thresholdRatio: 0.50
         retainRatio: 0.12
+        compactionRetries: 2
+        maxOverflowRetries: 2
         summarizationProvider: ririxin
         summarizationModel: deepseek-v4-flash
         maxTokens: 65536

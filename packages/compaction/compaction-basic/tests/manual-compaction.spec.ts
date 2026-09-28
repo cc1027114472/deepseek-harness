@@ -882,4 +882,15 @@ describe('compactNow transaction and failure classification', () => {
     compact.gate = undefined
     await expect(region).resolves.toMatchObject({ shadowedSeqs: nodes.slice(0, 2) })
   })
+
+  it('allows manual compaction to succeed even when summary is larger than shadowed content', async () => {
+    const { compact } = detachedService()
+    const session = closedConversation(1)
+    compact.summary = [{ type: 'text', text: 'expanded summary '.repeat(100) }]
+    const agent = fakeAgent(session, () => () => undefined)
+
+    const result = await compact.compactNow(agent, SIGNAL)
+    expect(result).not.toBeNull()
+    expect(result?.shadowedSeqs.length).toBeGreaterThan(0)
+  })
 })
