@@ -28,6 +28,22 @@ export function mapUsage(usage: PiUsage): TokenUsage {
   }
 }
 
+function classifyHttpStatusCode(status: number, detailText?: string): string | undefined {
+  if (status === 401 || status === 403) return 'AUTH'
+  if (status === 413) return 'INVALID_REQUEST'
+  if (status === 429) {
+    if (detailText !== undefined && isQuotaExceededError(detailText)) return QUOTA_EXCEEDED_CODE
+    return 'RATE_LIMIT'
+  }
+  if (status === 400) {
+    if (detailText !== undefined && isContextWindowExceededError(detailText)) return CONTEXT_WINDOW_EXCEEDED_CODE
+    return 'INVALID_REQUEST'
+  }
+  if (status === 408 || status === 504) return 'TIMEOUT'
+  if (status >= 500 && status <= 599) return 'SERVER'
+  return undefined
+}
+
 // XXX(pi-ai upstream): pi-ai flattens the caught error to `error.message`
 // (api/anthropic-messages.js: `errorMessage = error instanceof Error ?
 // error.message : JSON.stringify(error)`), discarding the original Error and its
@@ -37,15 +53,70 @@ export function mapUsage(usage: PiUsage): TokenUsage {
 // If pi-ai ever forwards the original Error (or a fetch/dispatcher hook that lets
 // us capture the cause ourselves), classify on `code`/`cause` instead of text.
 function classifyPiAiError(message: string): string {
-  if (/\b(?:401|403)\b/.test(message)) return 'AUTH'
+  // 1. If message is formatted as JSON error payload, extract code/status
+  if (message.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(message) as {
+        error?: { code?: unknown; status?: unknown; message?: unknown }
+        code?: unknown
+        status?: unknown
+        message?: unknown
+      }
+      const err = parsed.error ?? parsed
+      const rawCode = err.code ?? err.status
+      const numericCode = typeof rawCode === 'number' && Number.isInteger(rawCode)
+        ? rawCode
+        : typeof rawCode === 'string' && /^\d{3}$/.test(rawCode)
+          ? Number(rawCode)
+          : undefined
+      const detail = typeof err.message === 'string' ? err.message : ''
+      if (numericCode !== undefined) {
+        const mapped = classifyHttpStatusCode(numericCode, detail)
+        if (mapped !== undefined) return mapped
+      }
+      const statusStr = typeof err.status === 'string' ? err.status : ''
+      if (statusStr === 'RESOURCE_EXHAUSTED') {
+        return isQuotaExceededError(detail) ? QUOTA_EXCEEDED_CODE : 'RATE_LIMIT'
+      }
+      if (statusStr === 'UNAUTHENTICATED' || statusStr === 'PERMISSION_DENIED') return 'AUTH'
+      if (statusStr === 'INTERNAL' || statusStr === 'UNAVAILABLE') return 'SERVER'
+      if (statusStr === 'INVALID_ARGUMENT') {
+        return isContextWindowExceededError(detail) ? CONTEXT_WINDOW_EXCEEDED_CODE : 'INVALID_REQUEST'
+      }
+      if (statusStr === 'DEADLINE_EXCEEDED') return 'TIMEOUT'
+      if (detail.length > 0) {
+        message = detail
+      }
+    } catch {
+      // Not valid JSON, continue to string/HTML pattern matching
+    }
+  }
+
+  // 2. If message contains HTML error page (e.g. Cloudflare / Nginx 5xx / 4xx)
+  const titleCodeMatch = /<title[^>]*>.*?(\d{3}).*?<\/title>/is.exec(message)
+  if (titleCodeMatch !== null) {
+    const code = Number(titleCodeMatch[1])
+    const mapped = classifyHttpStatusCode(code, message)
+    if (mapped !== undefined) return mapped
+  }
+  const cfCodeMatch = /errorcode_(\d{3})|Error code\s*(\d{3})/i.exec(message)
+  if (cfCodeMatch !== null) {
+    const code = Number(cfCodeMatch[1] ?? cfCodeMatch[2])
+    const mapped = classifyHttpStatusCode(code, message)
+    if (mapped !== undefined) return mapped
+  }
+
+  // 3. String / regex pattern matching with lookbehind to avoid CSS / hyphenated token false positives
+  if (/(?<![-#@\w])(?:401|403)(?!\w)/.test(message) || /\bunauthenticated|unauthorized|forbidden\b/i.test(message)) return 'AUTH'
   if (isQuotaExceededError(message)) return QUOTA_EXCEEDED_CODE
-  if (/\b429\b|rate.?limit/i.test(message)) return 'RATE_LIMIT'
-  // A rejected request body (gateway or provider size cap): resending the
-  // same request cannot succeed, so it is invalid, not transient.
+  if (/(?<![-#@\w])429(?!\w)/.test(message) || /rate.?limit/i.test(message)) return 'RATE_LIMIT'
+  if (/(?<![-#@\w])5\d\d(?!\w)/.test(message) || /\b(?:bad gateway|gateway timeout|service unavailable|internal server error)\b/i.test(message)) return 'SERVER'
+  if (/(?<![-#@\w])(?:408|504)(?!\w)/.test(message) || /\btime(?:d)?\s*out\b|timeout/i.test(message)) return 'TIMEOUT'
   if (/\b413\b|failed to buffer the request body:\s*length limit exceeded|payload too large|request body too large/i.test(message)) return 'INVALID_REQUEST'
-  if (/\b400\b|invalid.?request/i.test(message)) return 'INVALID_REQUEST'
-  if (/\b5\d\d\b/.test(message)) return 'SERVER'
-  if (/\btime(?:d)?\s*out\b|timeout/i.test(message)) return 'TIMEOUT'
+  if (/(?<![-#@\w])400(?!\w)|invalid.?request/i.test(message)) {
+    if (isContextWindowExceededError(message)) return CONTEXT_WINDOW_EXCEEDED_CODE
+    return 'INVALID_REQUEST'
+  }
   // A stream truncated before the provider's terminal event: each pi-ai provider
   // throws its own wording when the wire closes mid-response without a terminal
   // event (`… stream ended before message_stop`, `… before a terminal response

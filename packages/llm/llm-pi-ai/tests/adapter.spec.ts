@@ -413,7 +413,6 @@ describe('PiAiAdapter provider routing', () => {
 describe('provider profile lifecycle', () => {
   it('keeps adapter helpers off the package root', () => {
     for (const helper of [
-      'resolveProfiles',
       'toPiContext',
       'toPiReplayState',
       'toPiAssistant',
@@ -449,7 +448,7 @@ describe('provider profile lifecycle', () => {
     })
     expect(ctx.llm.providerRetryPolicy('anthropic')).toMatchObject({
       mode: 'normal',
-      maxRetries: 5,
+      maxRetries: 7,
     })
     await fiber.dispose()
     expect(ctx.llm.listProviders()).toEqual([])

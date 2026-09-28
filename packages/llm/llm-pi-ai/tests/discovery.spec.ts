@@ -260,7 +260,7 @@ describe('draft-provider model discovery', () => {
       .rejects.toMatchObject({ code: 'DISCOVERY_FAILED' })
   })
 
-  it.each(['anthropic-messages', 'azure-openai-responses', 'openai-codex-responses', 'google-generative-ai'])(
+  it.each(['anthropic-messages', 'azure-openai-responses', 'openai-codex-responses'])(
     'says it cannot interrogate %s rather than guessing a shape',
     async (api) => {
       // Azure authenticates with an `api-key` header and an `api-version`
@@ -271,6 +271,34 @@ describe('draft-provider model discovery', () => {
         .rejects.toMatchObject({ code: 'DISCOVERY_UNSUPPORTED' })
     },
   )
+
+  it('reads a Google Generative AI compatible listing', async () => {
+    const server = await listingServer({
+      body: JSON.stringify({
+        models: [
+          {
+            name: 'models/gemini-3.7-flash-high',
+            displayName: 'Gemini 3.7 Flash High',
+            inputTokenLimit: 1048576,
+            outputTokenLimit: 65536,
+          },
+        ],
+      }),
+    })
+    const ctx = await harness()
+    const models = await ctx.llm.discoverModels('llm-pi-ai', {
+      baseURL: server.url,
+      api: 'google-generative-ai',
+    })
+    expect(models).toEqual([
+      {
+        id: 'gemini-3.7-flash-high',
+        name: 'Gemini 3.7 Flash High',
+        contextWindow: 1048576,
+        maxTokens: 65536,
+      },
+    ])
+  })
 
   it('reports cancellation during the body read as an abort, not a raw reason', async () => {
     const ctx = await harness()

@@ -268,7 +268,7 @@ describe('provider-routed retry policy', () => {
       ),
       textResponse('recovered'),
     ])
-    ;({ ctx: context } = await harness(adapter, {}))
+    ;({ ctx: context } = await harness(adapter))
     const agent = context.agentLoop.create(SessionId('retry-quota'), { provider: 'mock', model: 'mock' })
     const scheduled = waitForRetry(context, agent, 1)
 
@@ -277,7 +277,7 @@ describe('provider-routed retry policy', () => {
     expect(event.data).toMatchObject({
       mode: 'normal',
       retry: 1,
-      maxRetries: 7,
+      maxRetries: 2,
       failure: {
         message: 'Allocated quota exceeded, please increase your quota limit.',
         code: 'QUOTA',

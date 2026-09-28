@@ -822,6 +822,14 @@ describe('mapStopReason / mapUsage', () => {
       stopReason: 'error',
       errorMessage: 'vector length limit exceeded',
     }))).toMatchObject({ kind: 'error', failure: { code: 'PI_AI_ERROR' } })
+    expect(mapStopReason(assistant({
+      stopReason: 'error',
+      errorMessage: '{"error":{"message":"<!DOCTYPE html><html><head><title>ukapi.cc | 520: Web server is returning an unknown error</title></head><body><div class=\\"md:border-gray-400\\">Error code 520</div></body></html>","code":520,"status":"<none>"}}',
+    }))).toMatchObject({ kind: 'error', failure: { code: 'SERVER' } })
+    expect(mapStopReason(assistant({
+      stopReason: 'error',
+      errorMessage: '<!DOCTYPE html><html><head><title>502 Bad Gateway</title></head><body><div class="md:border-gray-400">Bad Gateway</div></body></html>',
+    }))).toMatchObject({ kind: 'error', failure: { code: 'SERVER' } })
   })
 
   it.each([

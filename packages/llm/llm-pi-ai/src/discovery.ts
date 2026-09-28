@@ -144,22 +144,44 @@ interface GeminiListingEntry {
  * skipped rather than failing the whole interrogation: a single malformed row
  * should not deny the user the rest of a working endpoint's catalog.
  */
-function readListing(body: unknown): LlmDiscoveredModel[] {
+function readListing(body: unknown, api: string): LlmDiscoveredModel[] {
   const container = body as { data?: unknown; models?: unknown } | null
-  const geminiModels = container?.models
-  if (Array.isArray(geminiModels)) {
+  if (api === 'google-generative-ai') {
+    const geminiModels = container?.models
+    if (Array.isArray(geminiModels)) {
+      const models: LlmDiscoveredModel[] = []
+      for (const raw of geminiModels) {
+        const entry = raw as GeminiListingEntry | null
+        const rawName = label(entry?.name)
+        if (rawName === undefined) continue
+        const id = rawName.replace(/^models\//, '')
+        const name = label(entry?.displayName) ?? id
+        const contextWindow = capacity(entry?.inputTokenLimit)
+        const maxTokens = capacity(entry?.outputTokenLimit)
+        models.push({
+          id,
+          name,
+          ...contextWindow === undefined ? {} : { contextWindow },
+          ...maxTokens === undefined ? {} : { maxTokens },
+        })
+      }
+      return models
+    }
+  }
+
+  const data = container?.data
+  if (Array.isArray(data)) {
     const models: LlmDiscoveredModel[] = []
-    for (const raw of geminiModels) {
-      const entry = raw as GeminiListingEntry | null
-      const rawName = label(entry?.name)
-      if (rawName === undefined) continue
-      const id = rawName.replace(/^models\//, '')
-      const name = label(entry?.displayName) ?? id
-      const contextWindow = capacity(entry?.inputTokenLimit)
-      const maxTokens = capacity(entry?.outputTokenLimit)
+    for (const raw of data) {
+      const entry = raw as ListingEntry | null
+      const id = label(entry?.id)
+      if (id === undefined) continue
+      const name = label(entry?.name, entry?.display_name)
+      const contextWindow = capacity(entry?.context_window, entry?.context_length)
+      const maxTokens = capacity(entry?.max_output_tokens, entry?.max_tokens)
       models.push({
         id,
-        name,
+        ...name === undefined ? {} : { name },
         ...contextWindow === undefined ? {} : { contextWindow },
         ...maxTokens === undefined ? {} : { maxTokens },
       })
@@ -167,29 +189,12 @@ function readListing(body: unknown): LlmDiscoveredModel[] {
     return models
   }
 
-  const data = container?.data
-  if (!Array.isArray(data)) {
-    throw new LlmError(
-      'the endpoint\'s model listing has no "data" or "models" array; enter this provider\'s models by hand',
-      'DISCOVERY_FAILED',
-    )
-  }
-  const models: LlmDiscoveredModel[] = []
-  for (const raw of data) {
-    const entry = raw as ListingEntry | null
-    const id = label(entry?.id)
-    if (id === undefined) continue
-    const name = label(entry?.name, entry?.display_name)
-    const contextWindow = capacity(entry?.context_window, entry?.context_length)
-    const maxTokens = capacity(entry?.max_output_tokens, entry?.max_tokens)
-    models.push({
-      id,
-      ...name === undefined ? {} : { name },
-      ...contextWindow === undefined ? {} : { contextWindow },
-      ...maxTokens === undefined ? {} : { maxTokens },
-    })
-  }
-  return models
+  throw new LlmError(
+    api === 'google-generative-ai'
+      ? 'the endpoint\'s model listing has no "models" or "data" array; enter this provider\'s models by hand'
+      : 'the endpoint\'s model listing has no "data" array; enter this provider\'s models by hand',
+    'DISCOVERY_FAILED',
+  )
 }
 
 /**
@@ -314,5 +319,5 @@ export async function discoverModels(
   } catch (error: unknown) {
     throw new LlmError(`${url} did not answer with JSON`, 'DISCOVERY_FAILED', { cause: error })
   }
-  return readListing(body)
+  return readListing(body, api)
 }
