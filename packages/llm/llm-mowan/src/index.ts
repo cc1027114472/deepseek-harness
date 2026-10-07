@@ -51,7 +51,7 @@ const catalogModel: z<MowanCatalogModel> = z.object({
   description: z.string(),
   contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
-  inputModalities: z.array(z.union(MODEL_MODALITIES)).min(1).default(['text']),
+  inputModalities: z.array(z.union(MODEL_MODALITIES)).min(1).default(['text', 'image']),
 })
 
 export const Config: z<MowanConfig> = z.object({

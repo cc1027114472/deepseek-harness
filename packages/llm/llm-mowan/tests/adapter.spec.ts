@@ -158,6 +158,7 @@ describe('llm-mowan', () => {
 
     const models = await ctx.llm.listModels('mowan')
     expect(models.map(m => m.id)).toEqual(['dynamic-model'])
+    expect(models[0]?.inputModalities).toEqual(['text', 'image'])
 
     await ctx.fiber.dispose()
     await rm(dir, { recursive: true, force: true })
