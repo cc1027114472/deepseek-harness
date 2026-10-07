@@ -4,9 +4,9 @@ import time
 from pathlib import Path
 import paramiko
 
-HOST = "154.23.162.32"
+HOST = "154.12.94.68"
 USER = "root"
-PASSWORD = "2Q99EAjlnb"
+PASSWORD = "BRJ01u2fptMO"
 REMOTE_DIR = "/var/www/sub2api-downloads"
 
 def progress_callback(transferred, total):
@@ -28,21 +28,24 @@ def upload_release(version_tag=None):
     if local_json.exists():
         files_to_upload.append((local_json, "latest.json"))
 
-    # 2. Mowan-Agent-Setup-latest.exe
-    latest_exe = sub2api_downloads / "Mowan-Agent-Setup-latest.exe"
-    if not latest_exe.exists():
-        latest_exe = dist_dir / "Mowan-Agent-Setup.exe"
-    if latest_exe.exists():
-        files_to_upload.append((latest_exe, "Mowan-Agent-Setup-latest.exe"))
-        files_to_upload.append((latest_exe, "Mowan-Agent-Setup.exe"))
-        files_to_upload.append((latest_exe, "Mowan-Harness-Setup.exe"))
-
-    # 3. Versioned exe if present
+    # 2. Main versioned exe (or fallback latest.exe)
+    target_remote_exe = None
     if version_tag:
         clean_v = version_tag.lstrip("v")
         v_exe = sub2api_downloads / f"Mowan-Agent-Setup-{clean_v}.exe"
+        if not v_exe.exists():
+            v_exe = dist_dir / f"Mowan-Agent-Setup-{clean_v}.exe"
         if v_exe.exists():
-            files_to_upload.append((v_exe, f"Mowan-Agent-Setup-{clean_v}.exe"))
+            target_remote_exe = f"Mowan-Agent-Setup-{clean_v}.exe"
+            files_to_upload.append((v_exe, target_remote_exe))
+
+    if not target_remote_exe:
+        latest_exe = sub2api_downloads / "Mowan-Agent-Setup-latest.exe"
+        if not latest_exe.exists():
+            latest_exe = dist_dir / "Mowan-Agent-Setup.exe"
+        if latest_exe.exists():
+            target_remote_exe = "Mowan-Agent-Setup-latest.exe"
+            files_to_upload.append((latest_exe, target_remote_exe))
 
     if not files_to_upload:
         print("No files found to upload!")
@@ -51,7 +54,18 @@ def upload_release(version_tag=None):
     print(f"Connecting to {HOST} via SSH/SFTP...")
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(HOST, username=USER, password=PASSWORD, timeout=20)
+    connected = False
+    for attempt in range(1, 6):
+        try:
+            print(f"  Connection attempt {attempt}/5...")
+            ssh.connect(HOST, username=USER, password=PASSWORD, timeout=30, banner_timeout=60, auth_timeout=60)
+            connected = True
+            break
+        except Exception as e:
+            print(f"  Attempt {attempt} failed: {e}")
+            time.sleep(3)
+    if not connected:
+        raise RuntimeError("Failed to connect to SSH after 5 attempts")
 
     # Ensure remote dir
     ssh.exec_command(f"mkdir -p {REMOTE_DIR}")
@@ -67,7 +81,21 @@ def upload_release(version_tag=None):
         print()
 
     sftp.close()
+    alias_cmd = ""
+    if target_remote_exe:
+        clean_v = target_remote_exe.replace("Mowan-Agent-Setup-", "").replace(".exe", "")
+        alias_cmd = (
+            f"cp -f {REMOTE_DIR}/{target_remote_exe} {REMOTE_DIR}/Mowan-Agent-Setup-latest.exe && "
+            f"cp -f {REMOTE_DIR}/{target_remote_exe} {REMOTE_DIR}/Mowan-Agent-Setup.exe && "
+            f"cp -f {REMOTE_DIR}/{target_remote_exe} {REMOTE_DIR}/Mowan-Harness-Setup.exe && "
+            f"ln -sf Mowan-Agent-Setup-{clean_v}.exe {REMOTE_DIR}/mowan-agent-setup-{clean_v}.exe && "
+            f"ln -sf Mowan-Agent-Setup-latest.exe {REMOTE_DIR}/mowan-agent-setup-latest.exe && "
+            f"ln -sf Mowan-Agent-Setup.exe {REMOTE_DIR}/mowan-agent-setup.exe && "
+            f"ln -sf Mowan-Harness-Setup.exe {REMOTE_DIR}/mowan-harness-setup.exe && "
+            f"ln -sf Mowan-Agent-Setup-latest.exe {REMOTE_DIR}/mowan-harness-portable.zip && "
+        )
     cmd = (
+        f"{alias_cmd}"
         f"mkdir -p /root/sub2api/deploy/data/public/downloads && "
         f"cp -rf {REMOTE_DIR}/* /root/sub2api/deploy/data/public/downloads/ && "
         f"chown -R www-data:www-data {REMOTE_DIR} && chmod -R 644 {REMOTE_DIR}/* && chmod 755 {REMOTE_DIR} && "
