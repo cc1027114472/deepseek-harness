@@ -178,10 +178,10 @@
     - id: compaction-basic
       name: '@deepseek-ai/dsh-compaction-basic'
       config:
-        # Balanced compaction: 50% threshold prevents premature compaction and protects
-        # the summarizer from overflow; 12% retention preserves sufficient recent context.
-        thresholdRatio: 0.50
-        retainRatio: 0.12
+        # Moderately tighter compaction: 40% threshold triggers earlier before context bloats;
+        # 8% retention preserves sufficient recent context while compacting more older turns.
+        thresholdRatio: 0.40
+        retainRatio: 0.08
         compactionRetries: 2
         maxOverflowRetries: 2
 
@@ -191,8 +191,8 @@
     - id: tool-result-pruner
       name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
       config:
-        thresholdChars: 8192
-        headChars: 4096
+        thresholdChars: 6144
+        headChars: 3072
         tailChars: 1024
 
 # ── delegation and workflows ────────────────────────────────────────────────
