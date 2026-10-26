@@ -179,9 +179,9 @@
       name: '@deepseek-ai/dsh-compaction-basic'
       config:
         # Earlier, tighter compaction: 30% threshold fires before context bloats;
-        # 4% retention keeps only the most recent turns; capped summaries keep size stable.
+        # 8k retained tokens keep the most recent turns verbatim; capped summaries keep size stable.
         thresholdRatio: 0.30
-        retainRatio: 0.04
+        retainTokens: 8192
         compactionRetries: 2
         maxOverflowRetries: 2
         summarizationProvider: ririxin
@@ -191,47 +191,47 @@
           - provider: ririxin
             model: deepseek-v4-flash
             thresholdRatio: 0.30
-            retainRatio: 0.04
+            retainTokens: 8192
           - provider: rrx2
             model: deepseek-v4-flash
             thresholdRatio: 0.30
-            retainRatio: 0.04
+            retainTokens: 8192
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: aaaa
             model: gemini-3.7-flash-high
             thresholdRatio: 0.30
-            retainRatio: 0.04
+            retainTokens: 8192
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: aaaa
             model: gemini-3.8-flash-high
             thresholdRatio: 0.30
-            retainRatio: 0.04
+            retainTokens: 8192
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: aaaa
             model: claude-sonnet-4-6
             thresholdRatio: 0.30
-            retainRatio: 0.04
+            retainTokens: 8192
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: bbbb
             model: claude-sonnet-4-6-thinking
             thresholdRatio: 0.30
-            retainRatio: 0.04
+            retainTokens: 8192
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: ririxin
             model: sensenova-6.7-flash-lite
             thresholdRatio: 0.30
-            retainRatio: 0.04
+            retainTokens: 8192
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: rrx2
             model: sensenova-6.7-flash-lite
             thresholdRatio: 0.30
-            retainRatio: 0.04
+            retainTokens: 8192
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
 
