@@ -179,9 +179,9 @@
       name: '@deepseek-ai/dsh-compaction-basic'
       config:
         # Earlier, tighter compaction: 30% threshold fires before context bloats;
-        # 4% retention keeps only the most recent turns; capped summaries keep size stable.
+        # 8k retained tokens keep the most recent turns verbatim; capped summaries keep size stable.
         thresholdRatio: 0.30
-        retainRatio: 0.04
+        retainTokens: 8192
         compactionRetries: 2
         maxOverflowRetries: 2
 
