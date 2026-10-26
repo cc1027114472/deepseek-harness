@@ -178,60 +178,60 @@
     - id: compaction-basic
       name: '@deepseek-ai/dsh-compaction-basic'
       config:
-        # Moderately tighter compaction: 40% threshold triggers earlier before context bloats;
-        # 8% retention preserves sufficient recent context while compacting more older turns.
-        thresholdRatio: 0.40
-        retainRatio: 0.08
+        # Earlier, tighter compaction: 30% threshold fires before context bloats;
+        # 4% retention keeps only the most recent turns; capped summaries keep size stable.
+        thresholdRatio: 0.30
+        retainRatio: 0.04
         compactionRetries: 2
         maxOverflowRetries: 2
         summarizationProvider: ririxin
         summarizationModel: deepseek-v4-flash
-        maxTokens: 65536
+        maxTokens: 24576
         modelPolicies:
           - provider: ririxin
             model: deepseek-v4-flash
-            thresholdRatio: 0.40
-            retainRatio: 0.08
+            thresholdRatio: 0.30
+            retainRatio: 0.04
           - provider: rrx2
             model: deepseek-v4-flash
-            thresholdRatio: 0.40
-            retainRatio: 0.08
+            thresholdRatio: 0.30
+            retainRatio: 0.04
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: aaaa
             model: gemini-3.7-flash-high
-            thresholdRatio: 0.40
-            retainRatio: 0.08
+            thresholdRatio: 0.30
+            retainRatio: 0.04
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: aaaa
             model: gemini-3.8-flash-high
-            thresholdRatio: 0.40
-            retainRatio: 0.08
+            thresholdRatio: 0.30
+            retainRatio: 0.04
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: aaaa
             model: claude-sonnet-4-6
-            thresholdRatio: 0.40
-            retainRatio: 0.08
+            thresholdRatio: 0.30
+            retainRatio: 0.04
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: bbbb
             model: claude-sonnet-4-6-thinking
-            thresholdRatio: 0.40
-            retainRatio: 0.08
+            thresholdRatio: 0.30
+            retainRatio: 0.04
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: ririxin
             model: sensenova-6.7-flash-lite
-            thresholdRatio: 0.40
-            retainRatio: 0.08
+            thresholdRatio: 0.30
+            retainRatio: 0.04
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
           - provider: rrx2
             model: sensenova-6.7-flash-lite
-            thresholdRatio: 0.40
-            retainRatio: 0.08
+            thresholdRatio: 0.30
+            retainRatio: 0.04
             summarizationProvider: ririxin
             summarizationModel: deepseek-v4-flash
 
@@ -241,8 +241,8 @@
     - id: tool-result-pruner
       name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
       config:
-        thresholdChars: 6144
-        headChars: 3072
+        thresholdChars: 4096
+        headChars: 2048
         tailChars: 1024
 
 # ── delegation and workflows ────────────────────────────────────────────────
