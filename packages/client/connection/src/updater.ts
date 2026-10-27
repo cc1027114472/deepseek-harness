@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 
-export const CURRENT_VERSION = '2.1.6'
+export const CURRENT_VERSION = '2.1.7'
 
 export interface UpdateManifest {
   version: string
@@ -336,5 +336,3 @@ export function applyAndRestart(): { success: boolean; error?: string } {
     return { success: false, error: `启动更新程序失败: ${String(err)}` }
   }
 }
-
-

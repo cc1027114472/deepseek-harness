@@ -4,9 +4,9 @@ import time
 from pathlib import Path
 import paramiko
 
-HOST = "154.12.94.68"
+HOST = "154.44.1.151"
 USER = "root"
-PASSWORD = "BRJ01u2fptMO"
+PASSWORD = "gKaB1W4HZDv8"
 REMOTE_DIR = "/var/www/sub2api-downloads"
 
 def progress_callback(transferred, total):
