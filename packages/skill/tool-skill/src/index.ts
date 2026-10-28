@@ -24,7 +24,7 @@ import {
 export const name = 'tool-skill'
 export const inject = ['agents', 'tools', 'skills']
 
-const DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH = 500
+const DEFAULT_CATALOG_DESCRIPTION_MAX_LENGTH = 150
 /**
  * Durable provider and item records for one published session skill catalog. The catalog is a
  * `catalog`-form context, so it records the entries it published beside the
@@ -387,10 +387,31 @@ function catalogMessage(
   return undefined
 }
 
-/** Normalized, length-bounded description exactly as the catalog publishes it (unescaped). */
+/**
+ * Normalized, compact single-line description: extracts core capability / first sentence,
+ * strips redundant trigger enumerations and verbose examples, and bounds to maxLength.
+ */
 function catalogDescription(value: string, maxLength: number): string {
-  const normalized = value.replaceAll(/\s+/g, ' ').trim()
-  return normalized.length <= maxLength ? normalized : `${normalized.slice(0, maxLength - 3)}...`
+  let text = value.replaceAll(/\s+/g, ' ').trim()
+  if (!text) return ''
+
+  // 1. Strip explicit trigger phrases / keywords enumerations
+  const triggerIndex = text.search(/\s*(?:Triggers?\s*(?:include|with|words?)?:|触发词[：:]|Trigger phrases:)/i)
+  if (triggerIndex > 0) {
+    text = text.slice(0, triggerIndex).trim()
+  }
+
+  // 2. Extract the first sentence (Chinese period/exclamation/question or English terminator)
+  const sentenceMatch = text.match(/^(.+?(?:[。！？]|\.(?=\s|$)))/u)
+  let candidate = sentenceMatch ? sentenceMatch[1]!.trim() : text
+
+  // 3. If first sentence is too short (< 15 chars) and text has more content, keep text up to boundary
+  if (candidate.length < 15 && text.length > candidate.length) {
+    candidate = text
+  }
+
+  // 4. Bound length to maxLength
+  return candidate.length <= maxLength ? candidate : `${candidate.slice(0, maxLength - 3).trimEnd()}...`
 }
 
 function assertPositiveInteger(name: string, value: number, minimum = 1): void {

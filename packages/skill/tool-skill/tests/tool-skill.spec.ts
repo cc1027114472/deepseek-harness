@@ -1082,4 +1082,34 @@ describe('user-explicit invocation injection', () => {
       .map(message => (message.source as { name: string }).name)
     expect(invoked).toEqual(['shared-skill'])
   })
+
+  it('formats catalog entries into compact single-line summaries stripping triggers and verbose examples', async () => {
+    const home = await tempDir('tool-compact-catalog')
+    const ctx = await setup(home)
+    ctx.skills.register({
+      name: 'browser-tool',
+      description: 'Browser automation CLI for AI agents. Use when user needs web interaction. Triggers include "open site", "click button".',
+      source: 'local',
+      path: '/test/browser',
+      instructions: 'Do browser stuff.',
+    })
+    ctx.skills.register({
+      name: 'doc-pruner',
+      description: '软著使用手册精简提炼与合规优化专用技能。用于批量或单个处理超大软著使用手册 Word。触发词：「软著精简」「手册压缩」。',
+      source: 'local',
+      path: '/test/doc',
+      instructions: 'Do doc stuff.',
+    })
+
+    const prefix = await composePrefix(ctx, '/workspace')
+    const catalogMsg = prefix.find(msg => (msg.source as { kind?: string }).kind === 'skill-catalog')
+    expect(catalogMsg).toBeDefined()
+    const content = (catalogMsg?.content[0] as { text: string }).text
+
+    // Check compact single-line extractions
+    expect(content).toContain('- `browser-tool`: Browser automation CLI for AI agents.')
+    expect(content).toContain('- `doc-pruner`: 软著使用手册精简提炼与合规优化专用技能。')
+    expect(content).not.toContain('Triggers include')
+    expect(content).not.toContain('触发词')
+  })
 })
