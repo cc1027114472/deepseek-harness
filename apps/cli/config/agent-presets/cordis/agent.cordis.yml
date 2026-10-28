@@ -132,8 +132,11 @@
     - id: compaction-basic
       name: '@deepseek-ai/dsh-compaction-basic'
       config:
-        thresholdRatio: 0.25
-        retainRatio: 0.05
+        # 130k context window policy: 0.70 threshold fires before context overflows;
+        # 16k retained tokens keep recent turns verbatim; 16k maxTokens caps summary size.
+        thresholdRatio: 0.70
+        retainTokens: 16384
+        maxTokens: 16384
         compactionRetries: 2
         maxOverflowRetries: 2
 
@@ -145,7 +148,7 @@
       config:
         thresholdChars: 8192
         headChars: 4096
-        tailChars: 1024
+        tailChars: 2048
 
 # ── delegation and workflows ────────────────────────────────────────────────
 

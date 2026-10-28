@@ -125,47 +125,31 @@ describe('renderToolsSdk', () => {
     output: { type: 'array', items: { type: 'string' } },
   }
 
-  it('declares every tool in lexicographic order with quoted keys for exotic names', () => {
+  it('renders compact usage instructions and generic tools declaration', () => {
     const text = renderToolsSdk([exotic, bash])
-    expect(text).toContain('interface ToolArgsMap {')
-    expect(text).toContain('interface ToolOutputMap {')
-    expect(text).toContain('type ToolName = keyof ToolOutputMap')
+    expect(text).not.toContain('interface ToolArgsMap {')
+    expect(text).not.toContain('interface ToolOutputMap {')
     expect(text).toContain('declare class ToolCallError extends Error')
-    expect(text).toContain('readonly toolName: ToolName;')
-    expect(text).toContain('declare const tools: {')
+    expect(text).toContain('readonly toolName: string;')
+    expect(text).toContain('declare const tools: Record<string, (args?: any) => Promise<any>>;')
     expect(text).toContain('type JsonValue = null | boolean | number | string')
-    expect(text.indexOf('bash: {')).toBeGreaterThan(0)
-    expect(text).toContain('"my-mcp.tool":')
-    expect(text.indexOf('bash:')).toBeLessThan(text.indexOf('"my-mcp.tool":'))
-    expect(text).toContain('exitCode: number;')
-    expect(text).toContain('"my-mcp.tool": string[];')
-    expect(text).toContain('[K in ToolName]: (args: ToolArgsMap[K]) => Promise<ToolOutputMap[K]>;')
-    expect(text).toContain('/** Run a shell command. */')
-    // The fixed instruction lines the model relies on.
-    expect(text).toContain('erasable syntax only')
     expect(text).toContain('rejects with `ToolCallError`')
-    expect(text).toContain('MAY overlap under `Promise.all`')
-    expect(text).toContain('lossless JSON')
+    expect(text).toContain('Promise.all')
+    expect(text).toContain('await tools.name(args)')
+    // Verify length stays within compact budget (~300-600 characters)
+    expect(text.length).toBeLessThan(700)
+    expect(text.length).toBeGreaterThan(300)
   })
 
   it('names both required call arguments, not just the program', () => {
-    // The schema requires `code` AND `description`; instructions that mention
-    // only the program let a model emit `{code}` alone and fail INVALID_ARGS.
     const text = renderToolsSdk([bash])
     expect(text).toContain('`code`')
     expect(text).toContain('`description`')
     expect(text).toContain('two required arguments')
   })
 
-  it('is deterministic: same tool set, byte-identical text regardless of input order', () => {
+  it('is deterministic and stable regardless of input order or empty input', () => {
     expect(renderToolsSdk([bash, exotic])).toBe(renderToolsSdk([exotic, bash]))
-    // Equal names sort stably (the comparator's equal arm).
-    expect(renderToolsSdk([bash, bash])).toBe(renderToolsSdk([bash, bash]))
-  })
-
-  it('renders an empty declaration for an empty tool set', () => {
-    const text = renderToolsSdk([])
-    expect(text).toContain('interface ToolArgsMap {}')
-    expect(text).toContain('interface ToolOutputMap {}')
+    expect(renderToolsSdk([])).toBe(renderToolsSdk([bash]))
   })
 })

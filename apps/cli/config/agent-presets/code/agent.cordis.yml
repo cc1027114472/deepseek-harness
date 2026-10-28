@@ -178,10 +178,11 @@
     - id: compaction-basic
       name: '@deepseek-ai/dsh-compaction-basic'
       config:
-        # Earlier, tighter compaction: 30% threshold fires before context bloats;
-        # 8k retained tokens keep the most recent turns verbatim; capped summaries keep size stable.
-        thresholdRatio: 0.30
-        retainTokens: 8192
+        # 130k context window policy: 0.70 threshold fires before context overflows;
+        # 16k retained tokens keep recent turns verbatim; 16k maxTokens caps summary size.
+        thresholdRatio: 0.70
+        retainTokens: 16384
+        maxTokens: 16384
         compactionRetries: 2
         maxOverflowRetries: 2
 
@@ -191,9 +192,9 @@
     - id: tool-result-pruner
       name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
       config:
-        thresholdChars: 4096
-        headChars: 2048
-        tailChars: 1024
+        thresholdChars: 8192
+        headChars: 4096
+        tailChars: 2048
 
 # ── delegation and workflows ────────────────────────────────────────────────
 
