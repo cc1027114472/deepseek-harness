@@ -373,6 +373,29 @@ describe('compact configuration and defaults', () => {
       compactionRetries: 2,
       maxOverflowRetries: 3,
     })
+
+    const absoluteThreshold = resolveTargetPolicy(resolveConfig({
+      thresholdTokens: 85_000,
+      retainTokens: 16_000,
+      modelPolicies: [{
+        provider: 'override-provider',
+        model: 'override-model',
+        thresholdTokens: 90_000,
+      }],
+    }), { provider: 'override-provider', model: 'override-model' })
+    expect(resolveCompactSpec(absoluteThreshold, 262_144)).toMatchObject({
+      thresholdTokens: 90_000,
+      retainTokens: 16_000,
+    })
+
+    const inheritedAbsolute = resolveTargetPolicy(resolveConfig({
+      thresholdTokens: 85_000,
+      retainTokens: 16_000,
+    }), { provider: 'any-provider', model: 'any-model' })
+    expect(resolveCompactSpec(inheritedAbsolute, 1_000_000)).toMatchObject({
+      thresholdTokens: 85_000,
+      retainTokens: 16_000,
+    })
   })
 
   it('inherits, clears, and replaces the summarization target as a pair', () => {
@@ -459,6 +482,10 @@ describe('compact configuration and defaults', () => {
       [{ modelPolicies: [{ provider: MODEL, model: MODEL }, { provider: MODEL, model: MODEL }] }, /duplicate model policy/],
       [{ models: { [MODEL]: { retainTokens: 10 } } }, /BasicCompactionConfig: unknown key "models"/],
       [{ thresholdRato: 0.5 }, /BasicCompactionConfig: unknown key "thresholdRato"/],
+      [{ thresholdTokens: 0 }, /BasicCompactionConfig\.thresholdTokens.*must be a positive integer/],
+      [{ thresholdTokens: -10 }, /BasicCompactionConfig\.thresholdTokens.*must be a positive integer/],
+      [{ thresholdTokens: 1.5 }, /BasicCompactionConfig\.thresholdTokens.*must be a positive integer/],
+      [{ modelPolicies: [{ provider: MODEL, model: MODEL, thresholdTokens: 0 }] }, /modelPolicies\[0\]\.thresholdTokens.*must be a positive integer/],
     ] as Array<[unknown, RegExp]>
 
     for (const [config, pattern] of bad) {

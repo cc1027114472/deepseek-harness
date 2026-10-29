@@ -30,6 +30,7 @@ Every setting is optional. Top-level policy fields are defaults for every routed
 | Key | Required | Meaning |
 |---|---|---|
 | `thresholdRatio` | no (default `0.25`) | Compact at `floor(routedContextWindow × ratio)`. |
+| `thresholdTokens` | no | Absolute token threshold to trigger compaction. When set, caps or sets the effective threshold. |
 | `retainRatio` | no (default `0.05`) | Recent surface budget kept verbatim as a fraction of the routed context window; mutually exclusive with `retainTokens`. |
 | `retainTokens` | no | Absolute recent surface budget kept verbatim; mutually exclusive with `retainRatio` and must be below the resolved threshold. |
 | `summarizationProvider` | no (default `''`) | Set together with `summarizationModel`; an empty pair resolves the latest logged request target, then the `AgentOptions` pair. |
