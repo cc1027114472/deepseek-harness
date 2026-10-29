@@ -324,6 +324,8 @@ export function applyGlobTool(ctx: Context, caps: GlobToolCaps): void {
       path: { type: 'string', description: 'Directory to search in. Defaults to the session workspace; a relative path resolves against it.' },
     },
     timeoutMs: caps.timeoutMs,
+    // Ripgrep execution is read-only and backed by a distinct subprocess, so concurrent calls never race.
+    isConcurrencySafe: () => true,
     output: {
       schema: {
         type: 'object',

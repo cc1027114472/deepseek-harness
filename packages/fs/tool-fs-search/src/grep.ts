@@ -276,7 +276,9 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
   ctx.systemPrompt.section({
     name: 'tool:grep',
     order: 104,
-    text: 'Use the grep tool — not shell grep or rg — to search file contents. Use read on a matched file when you need surrounding context.',
+    text: 'Use the grep tool — not shell grep or rg — to search file contents. '
+      + 'Use read on a matched file when you need surrounding context; '
+      + 'when inspecting multiple known occurrences or files, dispatch the read calls in parallel in the same response turn.',
   })
 
   const tool = defineTool({
@@ -317,6 +319,8 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
       presentationMeta: (_args, value) =>
         grepSearchMeta(retainGrepMatches(value.matches, caps.maxMatches, caps.maxLineBytes), caps.maxMetaBytes),
     },
+    // Ripgrep content search is read-only and spawns an isolated subprocess, so parallel runs are safe.
+    isConcurrencySafe: () => true,
     async execute(args, exec) {
       const input = parseGrepArgs(args)
       const run = await runRipgrep(ctx, exec, 'grep', buildGrepCommand(input), caps.rawOutputMaxBytes, caps.graceMs, caps.stderrMaxBytes)

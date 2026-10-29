@@ -58,6 +58,13 @@ export function apply(ctx: Context, config: Config): void {
   assertPositiveInteger('readMaxLineLength', resolved.readMaxLineLength)
   assertPositiveInteger('readMaxBytes', resolved.readMaxBytes)
   assertPositiveInteger('readStreamMinSize', resolved.readStreamMinSize)
+
+  ctx.systemPrompt.section({
+    name: 'tools:concurrency',
+    order: 99,
+    text: 'When performing multiple read-only or informational actions (such as reading multiple files/sections, searching, or inspecting environment facts) that do not depend on each other, issue those tool calls together in parallel within a single response turn instead of sequentially across multiple turns. Before issuing parallel calls, summarize the intent concisely in 1–2 brief narration sentences.',
+  })
+
   applyReadTool(ctx, {
     limit: resolved.readLimit,
     maxLineLength: resolved.readMaxLineLength,
