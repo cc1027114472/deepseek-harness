@@ -135,6 +135,7 @@
         # 130k context window policy: 0.70 threshold fires before context overflows;
         # 16k retained tokens keep recent turns verbatim; 16k maxTokens caps summary size.
         thresholdRatio: 0.70
+        thresholdTokens: 90112
         retainTokens: 16384
         maxTokens: 16384
         compactionRetries: 2
