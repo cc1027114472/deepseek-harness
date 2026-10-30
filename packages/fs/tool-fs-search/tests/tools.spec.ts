@@ -245,6 +245,10 @@ describe('registration', () => {
     expect(prompt).not.toContain('sampled across top-level directories')
     const glob = ctx.tools.schemas().find(schema => schema.name === 'glob')
     expect(glob?.description).toContain('sampled across top-level entries')
+    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: CallId('glob-safe'), name: 'glob', arguments: { pattern: '*' } }))
+      .toEqual({ kind: 'parallel' })
+    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: CallId('grep-safe'), name: 'grep', arguments: { pattern: 'foo' } }))
+      .toEqual({ kind: 'parallel' })
   })
 
   it('stays pending until ctx.subprocess exists (inject)', async () => {
