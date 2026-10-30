@@ -385,3 +385,16 @@
   font-size: 12px;
   line-height: 15px;
 }
+
+@media (max-width: 768px) {
+  .userStack {
+    max-width: 90%;
+  }
+
+  .bubble {
+    padding: 8px 12px;
+    font-size: 14px;
+    line-height: 20px;
+    border-radius: 14px;
+  }
+}

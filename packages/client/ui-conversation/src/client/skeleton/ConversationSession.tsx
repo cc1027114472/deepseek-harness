@@ -8,6 +8,7 @@ import type {
 } from '../contract/slots.ts'
 import { resolveActiveView } from '../view-selection.ts'
 import { DefaultConversationViews } from './DefaultConversationViews.tsx'
+import { GitBranchChip } from './GitBranchChip.tsx'
 import css from './ConversationRoot.module.css'
 
 /** Full props composed from the strict session body contract. */
@@ -63,6 +64,8 @@ export function ConversationSessionHeader({
   const selectedId = useStore(s => s.view)
   const active = resolveActiveView(tabs, selectedId)
   const ancestry = useSessions(s => deriveAncestry(s, sessionId), equalBreadcrumbs)
+  const sessionCwd = useSessions(s => s.byId[sessionId]?.cwd)
+  const branchDir = sessionCwd && sessionCwd !== '' ? sessionCwd : undefined
   const showTabs = !hideChrome && tabs.length > 1
   return (
     <>
@@ -126,6 +129,7 @@ export function ConversationSessionHeader({
               </nav>
               <div className={css.headerActions}>
                 {renderSlot('conversation.session.header.actions', {})}
+                <GitBranchChip cwd={branchDir} />
               </div>
             </div>
             <div className={css.headerUtilities}>

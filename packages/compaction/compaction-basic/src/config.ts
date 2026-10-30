@@ -25,6 +25,7 @@ const DEFAULT_RETAIN_RATIO = 0.16
 /** Fields shared by top-level defaults and exact-target overrides. */
 const POLICY_CONFIG_KEYS = [
   'thresholdRatio',
+  'thresholdTokens',
   'headroomTokens',
   'retainRatio',
   'retainTokens',
@@ -97,6 +98,7 @@ export function resolveConfig(config: BasicCompactionConfig = {}): ResolvedConfi
 
   return deepFreeze({
     thresholdRatio,
+    ...config.thresholdTokens === undefined ? {} : { thresholdTokens: config.thresholdTokens },
     headroomTokens,
     ...retention,
     summarizationProvider: config.summarizationProvider ?? '',
@@ -125,9 +127,11 @@ export function resolveTargetPolicy(
   const inheritedRetention: ResolvedRetention = config.retainTokens === undefined
     ? { retainRatio: config.retainRatio }
     : { retainTokens: config.retainTokens }
+  const thresholdTokens = override?.thresholdTokens ?? config.thresholdTokens
   return deepFreeze({
     target: { provider: target.provider, model: target.model },
     thresholdRatio: override?.thresholdRatio ?? config.thresholdRatio,
+    ...thresholdTokens === undefined ? {} : { thresholdTokens },
     headroomTokens: override?.headroomTokens ?? config.headroomTokens,
     ...resolveRetention(override ?? {}, inheritedRetention),
     summarizationProvider: override?.summarizationProvider ?? config.summarizationProvider,
@@ -188,8 +192,11 @@ export function resolveCompactSpec(
       + 'compaction headroomTokens, or configure a larger adapter model contextWindow',
     )
   }
+  const thresholdRatioTokens = policy.thresholdTokens === undefined
+    ? contextWindow * policy.thresholdRatio
+    : Math.min(policy.thresholdTokens, contextWindow * policy.thresholdRatio)
   const thresholdTokens = Math.floor(Math.min(
-    contextWindow * policy.thresholdRatio,
+    thresholdRatioTokens,
     pressureBudgetTokens,
   ))
   const retainTokens = policy.retainTokens === undefined
@@ -279,6 +286,7 @@ function validatePolicy(
   name: string,
 ): void {
   const thresholdRatio = config.thresholdRatio
+  const thresholdTokens = config.thresholdTokens
   const headroomTokens = config.headroomTokens
   const retainRatio = config.retainRatio
   const retainTokens = config.retainTokens
@@ -286,6 +294,7 @@ function validatePolicy(
   const compactionRetries = config.compactionRetries
   const maxOverflowRetries = config.maxOverflowRetries
   if (thresholdRatio !== undefined) assertRatio(`${name}.thresholdRatio`, thresholdRatio)
+  if (thresholdTokens !== undefined) assertPositiveInteger(`${name}.thresholdTokens`, thresholdTokens)
   if (headroomTokens !== undefined) assertNonNegativeInteger(`${name}.headroomTokens`, headroomTokens)
   if (retainRatio !== undefined) assertRatio(`${name}.retainRatio`, retainRatio)
   if (retainTokens !== undefined) assertNonNegativeInteger(`${name}.retainTokens`, retainTokens)

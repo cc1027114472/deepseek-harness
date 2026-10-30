@@ -53,9 +53,21 @@ export class DirectoryPickerController extends TypertRemoteService {
    */
   @Remote('pick')
   async pick(signal: AbortSignal): Promise<string | null> {
-    const capability = this.requireCapability('native', 'pick')
+    const rawCapability = this.ctx.directoryPicker.capability()
+    const picker = rawCapability.kind === 'native'
+      ? rawCapability
+      : (typeof (rawCapability as { pick?: unknown }).pick === 'function'
+        ? rawCapability as { pick: (signal: AbortSignal) => Promise<string | null> }
+        : null)
+    if (!picker) {
+      throw new RemoteError(
+        'directory-picker/unavailable',
+        `directoryPicker.pick needs the native capability or a capability with pick(); the composed picker serves "${rawCapability.kind}"`,
+        { capability: rawCapability.kind },
+      )
+    }
     try {
-      return await capability.pick(signal)
+      return await picker.pick(signal)
     } catch (error: unknown) {
       throw cancellableFailure(error, signal, 'directory picker was aborted', 'directory picker failed')
     }

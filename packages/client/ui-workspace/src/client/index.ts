@@ -236,6 +236,7 @@ export function apply(ctx: Context): void {
     },
     unarchiveSession: async (sessionId) => { await uiWorkspace.unarchiveSession(sessionId) },
     createWorkspace: input => workspaces.create(input),
+    pickDirectory: () => uiWorkspace.pickDirectory(),
     hooks: { directoryFlow: browserFlowSource, hostInfo },
   })
   const pickerInjected = (): WorkspacePickerInjected => ({

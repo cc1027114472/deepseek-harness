@@ -142,6 +142,15 @@
     - id: web-startup
       name: '@deepseek-ai/dsh-web-app/startup'
 
+    # Cloudflare Tunnel provider for secure remote / mobile browser access
+    - id: tunnel-cloudflared
+      name: '@deepseek-ai/dsh-tunnel-cloudflared'
+      inject: [webStartup]
+      config:
+        enabled: false
+        mode: quick
+        port: !!js ctx.webStartup.port ?? 3090
+
     # ── layer 2: transport/service ──────────────────────────────────────────────
 
     # Plain route-registration carrier; host and port come from the app's
@@ -151,8 +160,8 @@
       name: '@deepseek-ai/dsh-host-webserver'
       inject: [webStartup]
       config:
-        host: !!js ctx.webStartup.host ?? '127.0.0.1'
-        port: !!js ctx.webStartup.port ?? 3080
+        host: !!js ctx.webStartup.host ?? '0.0.0.0'
+        port: !!js ctx.webStartup.port ?? 3090
         compression: gzip
         compressionLevel: 1
         compressionThresholdBytes: 1024
@@ -279,6 +288,10 @@
     # bundles the sidebar page leaves out are inspected here.
     - id: ui-settings-plugin-inventory
       name: '@deepseek-ai/dsh-client-ui-settings-plugin-inventory'
+
+    # Remote access / tunnel configuration and mobile pairing
+    - id: ui-tunnel
+      name: '@deepseek-ai/dsh-client-ui-tunnel'
 
     - id: ui-conversation
       name: '@deepseek-ai/dsh-client-ui-conversation'

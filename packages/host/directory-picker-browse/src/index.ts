@@ -20,6 +20,7 @@ import {
 import type {
   DirectoryEntry, DirectoryListing, DirectoryPickerCapability,
 } from '@deepseek-ai/dsh-host-directory-picker'
+import { pickNativeDirectory } from '@deepseek-ai/dsh-host-directory-picker-native'
 
 /**
  * Ancestor chain from the filesystem root to `target` inclusive — the
@@ -198,6 +199,7 @@ export default class BrowseDirectoryPicker extends DirectoryPicker {
 
   private readonly browseCapability: DirectoryPickerCapability = {
     kind: 'browse',
+    pick: signal => pickNativeDirectory(signal),
     list: (path, signal) => this.list(path, signal),
     createDirectory: (path, name) => this.createDirectory(path, name),
   }

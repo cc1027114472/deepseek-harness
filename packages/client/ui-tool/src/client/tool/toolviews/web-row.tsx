@@ -26,7 +26,7 @@ export function WebRow({ toolName, block, inspect, useDisclosure, t }: WebRowPro
       variant={model.variant}
       toolName={toolName}
       icon={icon}
-      title={t(toolName === 'web_search'
+      title={t(toolName === 'web_search' || toolName === 'dsh_web_search'
         ? WEB_TITLE_KEYS.web_search
         : toolName === 'web_fetch' ? WEB_TITLE_KEYS.web_fetch : model.titleKey)}
       summary={model.summary}
@@ -46,6 +46,7 @@ export const webToolview = {
   apply(ctx: Context): void {
     ctx.slots.inject('tool.call.toolview', function* () {
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'web_search', locale: NS }, WebRow)
+      yield ctx.slots.register({ name: 'tool.call.toolview', key: 'dsh_web_search', locale: NS }, WebRow)
       yield ctx.slots.register({ name: 'tool.call.toolview', key: 'web_fetch', locale: NS }, WebRow)
     })
   },

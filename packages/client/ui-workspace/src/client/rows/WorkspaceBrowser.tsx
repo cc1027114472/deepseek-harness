@@ -14,10 +14,11 @@
  * are slot entries with their own behavior, so this component threads no
  * action callbacks and hosts no action surface.
  */
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   Button, IconArchiveCheckOutlineRegular, IconArchiveOutlineRegular,
+  IconBrowseOutlineRegular,
   IconChevronsUpDownOutlineRegular, IconClockOutlineRegular, IconCloseFillRegular,
   IconFlatListOutlineRegular, IconFolderCloseRegular, IconProjectAddOutlineRegular,
   IconSearchOutlineRegular, IconSlidersTwoOutlineRegular,
@@ -823,6 +824,7 @@ export function WorkspaceBrowser({
   insertWorkspaceBefore,
   unarchiveSession,
   createWorkspace,
+  pickDirectory,
   searchSessions,
   searchResultLimit,
   useDirectoryFlow,
@@ -848,6 +850,25 @@ export function WorkspaceBrowser({
   const archivedFilter = useStore(s => s.archivedFilter ?? 'default')
   const groupExpansion = useStore(s => s.groupExpansion)
   const sessionOrderByAccount = useStore(s => s.sessionOrderByAccount)
+  const [nativeBusy, setNativeBusy] = useState(false)
+  const [nativeError, setNativeError] = useState<string | null>(null)
+
+  const handleNativePick = useCallback(async () => {
+    if (pickDirectory === undefined || nativeBusy) return
+    setNativeBusy(true)
+    try {
+      const path = await pickDirectory()
+      if (path !== null && path !== undefined && path.trim() !== '') {
+        const workspace = await createWorkspace({ path })
+        startSession(workspace.workspaceId)
+      }
+    } catch (reason: unknown) {
+      setNativeError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setNativeBusy(false)
+    }
+  }, [pickDirectory, nativeBusy, createWorkspace, startSession])
+
   // Archived sessions are not openable: the row stays visible under the
   // filter but a click explains instead of navigating.
   const guardedOpen = (sessionId: SessionId): void => {
@@ -1220,15 +1241,29 @@ export function WorkspaceBrowser({
               picking affordance has nothing to offer here: the region hides the
               button rather than leaving a dead one in the header. */}
           {directoryFlowAvailable && (
-            <Tooltip label={t('workspace.add')} side="bottom" delayMs={500}>
+            <Tooltip label={t('workspace.addBrowse')} side="bottom" delayMs={500}>
               <button
                 ref={wsPlusRef}
                 type="button"
                 className={css.iconButton}
-                aria-label={t('workspace.add')}
+                aria-label={t('workspace.addBrowse')}
                 onClick={() => {
                   setWsPickerOpen(v => !v)
                 }}
+              >
+                <IconBrowseOutlineRegular size={wide ? 16 : 18} />
+              </button>
+            </Tooltip>
+          )}
+          {/* Native OS directory picker dialog */}
+          {pickDirectory !== undefined && (
+            <Tooltip label={t('workspace.addNative')} side="bottom" delayMs={500}>
+              <button
+                type="button"
+                className={css.iconButton}
+                aria-label={t('workspace.addNative')}
+                disabled={nativeBusy}
+                onClick={handleNativePick}
               >
                 <IconProjectAddOutlineRegular size={wide ? 16 : 18} />
               </button>
@@ -1406,6 +1441,21 @@ export function WorkspaceBrowser({
       >
         {deleting && <div className={css.deleteStatus} role="status">{t('delete.pending')}</div>}
         {deleteError !== null && <div className={css.renameError} role="alert">{deleteError}</div>}
+      </Modal>
+
+      <Modal
+        open={nativeError !== null}
+        onClose={() => { setNativeError(null) }}
+        closeLabel={t('close')}
+        title={t('folderError.title')}
+        footer={(
+          <>
+            <Button variant="outline" onClick={() => { setNativeError(null) }}>{t('cancel')}</Button>
+            <Button variant="primary" onClick={() => { setNativeError(null); void handleNativePick() }}>{t('folderError.retry')}</Button>
+          </>
+        )}
+      >
+        {nativeError !== null && <div className={css.renameError} role="alert">{nativeError}</div>}
       </Modal>
     </div>
   )

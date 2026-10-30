@@ -11,6 +11,7 @@ import { bridge, DEFAULT_MAX_REQUEST_BODY_BYTES } from './http-bridge.ts'
 import { assertTrustedAuthority } from './api-request-trust.ts'
 import { BrowserAuth } from './browser-auth.ts'
 import { HostConnectionService } from './rpc-host.ts'
+import { resolveGitBranch } from './git-branch.ts'
 import { ConnectionRecoveryConfigSchema, resolveConnectionConfig, type ConnectionRecoveryConfig } from './recovery-config.ts'
 
 export type {
@@ -156,6 +157,28 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
       },
     }
     webCtx.effect(() => webCtx.webServer.register(route), 'client-connection: /api route')
+
+    const gitBranchRoute: WebRoute = {
+      kind: 'exact',
+      path: '/api/git-branch',
+      handler: (req, res) => {
+        const admission = connection.admit(req)
+        if ('rejection' in admission) {
+          res.writeHead(admission.rejection)
+          res.end(admission.rejection === 401 ? 'unauthorized' : 'forbidden')
+          return
+        }
+        const url = new URL(req.url ?? '/', 'http://dsh.internal')
+        const targetPath = url.searchParams.get('path') ?? undefined
+        const branch = resolveGitBranch(targetPath)
+        res.writeHead(200, {
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': 'no-cache, no-store',
+        })
+        res.end(JSON.stringify({ branch }))
+      },
+    }
+    webCtx.effect(() => webCtx.webServer.register(gitBranchRoute), 'client-connection: /api/git-branch route')
   })
   ctx.inject(['attachments'], (attachmentCtx) => {
     assertImageBodyCapacity(attachmentCtx, maxRequestBodyBytes)
