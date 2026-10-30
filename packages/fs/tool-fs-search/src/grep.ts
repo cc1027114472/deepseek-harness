@@ -292,6 +292,8 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
       include: { type: 'string', description: 'One glob filter for which files to search (e.g. "*.ts", "*.{js,jsx}"). Not a list; negation is not supported.' },
     },
     timeoutMs: caps.timeoutMs,
+    // Ripgrep execution is read-only and backed by a distinct subprocess, so concurrent calls never race.
+    isConcurrencySafe: () => true,
     output: {
       schema: {
         type: 'object',
