@@ -70,7 +70,10 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps): void {
   ctx.systemPrompt.section({
     name: 'tool:read',
     order: 100,
-    text: 'Use the read tool — not shell commands like cat — to inspect text files. Results include line numbers. Use offset and limit to continue reading large files.',
+    text: 'Use the read tool — not shell commands like cat — to inspect text files. Results include line numbers. '
+      + 'Prefer reading a sufficient, wide window of context in a single call (100–300 lines for functions or modules) '
+      + 'rather than issuing multiple small sequential calls to adjacent ranges of the same file. '
+      + 'Use offset and limit when navigating very large files.',
   })
 
   ctx.tools.register(defineTool({
@@ -79,7 +82,11 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps): void {
     parameters: {
       file_path: { type: 'string', required: true, description: 'Path to read, resolved by the filesystem backend.' },
       offset: { type: 'number', description: '1-based first line to return. Defaults to 1.' },
-      limit: { type: 'number', description: `Maximum number of lines to return. Defaults to ${caps.limit}.` },
+      limit: {
+        type: 'number',
+        description: `Maximum number of lines to return. Defaults to ${caps.limit}. `
+          + 'Prefer default or generous limits over tight 20–40 line fragments when inspecting substantial logic.',
+      },
     },
     output: {
       schema: {
