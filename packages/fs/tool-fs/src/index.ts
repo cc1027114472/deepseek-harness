@@ -62,7 +62,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.systemPrompt.section({
     name: 'tools:concurrency',
     order: 99,
-    text: 'When performing multiple read-only or informational actions (such as reading multiple files/sections, searching, or inspecting environment facts) that do not depend on each other, issue those tool calls together in parallel within a single response turn instead of sequentially across multiple turns. Before issuing parallel calls, summarize the intent concisely in 1–2 brief narration sentences in the user\'s language.',
+    text: 'When multiple read-only or informational actions are needed and do not depend on each other (such as inspecting several known files, reading targeted slices around search matches, or querying environment facts), issue those tool calls together in parallel within a single response turn instead of sequentially across multiple turns. Do NOT read files one by one when candidate paths or locations are already identified. For broad exploration, search first (e.g. glob/grep) to narrow down candidates, then read relevant slices concurrently with targeted offset/limit rather than dumping entire large files. Before issuing parallel calls, summarize the intent concisely in 1–2 brief narration sentences in the user\'s language.',
   })
 
   applyReadTool(ctx, {
