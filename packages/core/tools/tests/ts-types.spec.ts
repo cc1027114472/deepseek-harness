@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { jsonSchemaToTs, renderToolsSdk } from '@deepseek-ai/dsh-tools/src/ts-types.ts'
 import type { ToolSdkSchema } from '@deepseek-ai/dsh-tools/src/ts-types.ts'
-import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools/src/json-schema.ts'
 import { parameterSchemaSpecToJsonSchema } from '@deepseek-ai/dsh-tools'
 
 describe('jsonSchemaToTs', () => {
@@ -129,102 +128,31 @@ describe('renderToolsSdk', () => {
     output: { type: 'array', items: { type: 'string' } },
   }
 
-  it('declares every tool in lexicographic order with quoted keys for exotic names', () => {
+  it('renders compact usage instructions and generic tools declaration', () => {
     const text = renderToolsSdk([exotic, bash])
-    expect(text).toContain('interface ToolArgsMap {')
-    expect(text).toContain('interface ToolOutputMap {')
-    expect(text).toContain('type ToolName = keyof ToolOutputMap')
+    expect(text).not.toContain('interface ToolArgsMap {')
+    expect(text).not.toContain('interface ToolOutputMap {')
     expect(text).toContain('declare class ToolCallError extends Error')
-    expect(text).toContain('readonly toolName: ToolName;')
-    expect(text).toContain('declare const tools: {')
+    expect(text).toContain('readonly toolName: string;')
+    expect(text).toContain('declare const tools: Record<string, (args?: any) => Promise<any>>;')
     expect(text).toContain('type JsonValue = null | boolean | number | string')
-    expect(text.indexOf('bash: {')).toBeGreaterThan(0)
-    expect(text).toContain('"my-mcp.tool":')
-    expect(text.indexOf('bash:')).toBeLessThan(text.indexOf('"my-mcp.tool":'))
-    expect(text).toContain('exitCode: number;')
-    expect(text).toContain('"my-mcp.tool": string[];')
-    expect(text).toContain('[K in ToolName]: (args: ToolArgsMap[K]) => Promise<ToolOutputMap[K]>;')
-    expect(text).toContain('/** Run a shell command. */')
-    // The fixed instruction lines the model relies on.
-    expect(text).toContain('erasable syntax only')
-    expect(text).toContain('rejects with `ToolCallError`')
-    expect(text).toContain('MAY overlap under `Promise.all`')
-    expect(text).toContain('lossless JSON')
+    expect(text).toContain('reject with `ToolCallError`')
+    expect(text).toContain('Promise.all')
+    expect(text).toContain('await tools.name(args)')
+    // Verify length stays within compact budget (~300-800 characters across LF/CRLF)
+    expect(text.length).toBeLessThan(800)
+    expect(text.length).toBeGreaterThan(300)
   })
 
   it('names both required call arguments, not just the program', () => {
-    // The schema requires `code` AND `description`; instructions that mention
-    // only the program let a model emit `{code}` alone and fail INVALID_ARGS.
     const text = renderToolsSdk([bash])
     expect(text).toContain('`code`')
     expect(text).toContain('`description`')
     expect(text).toContain('two required arguments')
   })
 
-  it('keeps generated bindings inside a run_code program', () => {
-    const text = renderToolsSdk([bash])
-    expect(text).toContain('A declaration does not make its name a directly callable tool')
-    expect(text).toContain('only names supplied as separate tool schemas may be called directly')
-    expect(text).toContain('`run_code({ code: "return await tools.bash({ command: \'pwd\', description: \'Show current directory\' })"')
-    expect(text).toContain('Program-only SDK bindings:')
-    expect(text).not.toContain('The available tools:')
-  })
-
-  it('only shows a bash example accepted by the declared binding', () => {
-    expect(renderToolsSdk([exotic])).not.toContain('tools.bash(')
-
-    const commandOnly = {
-      ...bash,
-      parameters: parameterSchemaSpecToJsonSchema({
-        command: { type: 'string', required: true },
-      }) as unknown as Record<string, unknown>,
-    }
-    expect(renderToolsSdk([commandOnly]))
-      .toContain('tools.bash({ command: \'pwd\' })')
-
-    const incompatible = {
-      ...bash,
-      parameters: parameterSchemaSpecToJsonSchema({
-        command: { type: 'string', required: true },
-        cwd: { type: 'string', required: true },
-      }) as unknown as Record<string, unknown>,
-    }
-    expect(renderToolsSdk([incompatible])).not.toContain('tools.bash(')
-
-    const parameters = (value: JsonSchemaNode): ToolSdkSchema => ({
-      ...bash,
-      parameters: value as Record<string, unknown>,
-    })
-    const rejected: JsonSchemaNode[] = [
-      { type: 'string' },
-      { type: 'object', properties: {} },
-      { type: 'object', properties: { command: { type: 'number' } } },
-      { type: 'object', properties: { command: { type: 'string', const: 'date' } } },
-      { type: 'object', properties: { command: { type: 'string', enum: ['date'] } } },
-      {
-        type: 'object',
-        properties: { command: { type: 'string' }, description: { type: 'number' } },
-        required: ['command', 'description'],
-      },
-    ]
-    for (const schema of rejected) expect(renderToolsSdk([parameters(schema)])).not.toContain('tools.bash(')
-
-    const constrained = parameters({
-      type: 'object',
-      properties: { command: { type: 'string', const: 'pwd', enum: ['pwd'] } },
-    })
-    expect(renderToolsSdk([constrained])).toContain('tools.bash({ command: \'pwd\' })')
-  })
-
-  it('is deterministic: same tool set, byte-identical text regardless of input order', () => {
+  it('is deterministic and stable regardless of input order or empty input', () => {
     expect(renderToolsSdk([bash, exotic])).toBe(renderToolsSdk([exotic, bash]))
-    // Equal names sort stably (the comparator's equal arm).
-    expect(renderToolsSdk([bash, bash])).toBe(renderToolsSdk([bash, bash]))
-  })
-
-  it('renders an empty declaration for an empty tool set', () => {
-    const text = renderToolsSdk([])
-    expect(text).toContain('interface ToolArgsMap {}')
-    expect(text).toContain('interface ToolOutputMap {}')
+    expect(renderToolsSdk([])).toBe(renderToolsSdk([bash]))
   })
 })

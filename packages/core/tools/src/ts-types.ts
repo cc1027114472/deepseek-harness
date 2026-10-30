@@ -246,72 +246,33 @@ export function jsonSchemaToTs(schema: unknown, indent = 0): string {
   }
 }
 
-/** The fixed model-facing usage contract rendered above the declarations (see the PTC mode Agent Note's "What the model sees"). */
+/** The fixed compact model-facing usage contract rendered in the tools:sdk section. */
 const SDK_INSTRUCTIONS = `## Writing code for run_code
 
-\`run_code\` takes two required arguments: \`code\` — the body of an async TypeScript function (erasable syntax only — no \`enum\` or namespaces; type annotations are advisory, the code runs type-stripped) — and \`description\`, a short summary of what the program does. The declarations below are SDK bindings for this program. A declaration does not make its name a directly callable tool; only names supplied as separate tool schemas may be called directly.`
+\`run_code\` takes two required arguments: \`code\` (async TypeScript function body) and \`description\` (short UI label).
+Inside the function:
+- Call tools via \`await tools.name(args)\` (or \`tools["kebab-name"](args)\`). Arguments follow each tool's declared schema.
+- Concurrent read-only calls may run via \`await Promise.all([...])\`.
+- Return values via \`return <result>\` or \`console.log(...)\`. Tool failures reject with \`ToolCallError\`.
 
-const SDK_PROGRAM_INSTRUCTIONS = `Inside the program:
+\`\`\`ts
+type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
-- Call tools as \`await tools.name(args)\` — quoted access for exotic names: \`tools["my-tool"](args)\`. Every call resolves to the tool's typed canonical JSON value. Tool arguments must be lossless JSON.
-- A FAILED tool call rejects with \`ToolCallError\`, whose \`toolName\` identifies the failed tool and whose \`message\` is human-readable — \`try/catch\` it to handle and continue.
-- Independent read-only calls MAY overlap under \`Promise.all\` (safe calls run concurrently; mutating calls run alone, in submission order). Sequence dependent work with \`await\`.
-- Emit results with \`return\` and/or \`console.log(...)\`. Only what you print or return is program output. A successful tool result containing an image is attached after the run so you can inspect it on the next step; every other intermediate result stays out of the conversation, so extract just what you need.
-
-Program-only SDK bindings:`
-
-/** Whether one string schema accepts the literal used by the bash example. */
-function acceptsExampleString(schema: JsonSchemaNode | undefined, value: string): boolean {
-  return schema?.type === 'string'
-    && (schema.const === undefined || schema.const === value)
-    && (schema.enum === undefined || schema.enum.includes(value))
+declare class ToolCallError extends Error {
+  readonly name: "ToolCallError";
+  readonly toolName: string;
 }
 
-/** Render the bash example only when its literal arguments satisfy the current parameter schema. */
-function renderBashExample(schemas: ToolSdkSchema[]): string {
-  const bash = schemas.find(schema => schema.name === 'bash')
-  if (bash === undefined) return ''
-  const parameters = bash.parameters as JsonSchemaNode
-  if (parameters.type !== 'object') return ''
-  const required = parameters.required ?? []
-  if (required.some(name => name !== 'command' && name !== 'description')) return ''
-  if (!acceptsExampleString(parameters.properties?.command, 'pwd')) return ''
-  const needsDescription = required.includes('description')
-  if (needsDescription && !acceptsExampleString(parameters.properties?.description, 'Show current directory')) return ''
-  const description = needsDescription ? ", description: 'Show current directory'" : ''
-  return ` When no separate \`bash\` schema is supplied, invoke a declared \`bash\` binding inside \`run_code\`:\n\n\`run_code({ code: "return await tools.bash({ command: 'pwd'${description} })", description: "Show current directory" })\``
-}
+declare const tools: Record<string, (args?: any) => Promise<any>>;
+\`\`\``
 
 /**
- * Render the full `tools:sdk` prompt section: the fixed usage instructions
- * plus one `declare const tools` interface covering every given tool.
- * Deterministic — tools are emitted in lexicographic name order, so an
- * unchanged tool set produces byte-identical text across assemblies. The sort
- * is not a total order on byte-equal names, so two schemas sharing a name
- * would render in argument order; the caller's visible-capability map is keyed
- * by name, so the input never carries a duplicate.
- * @param schemas - the tool schemas to declare (the caller excludes
- *   `run_code` itself).
+ * Render the compact `tools:sdk` prompt section: usage instructions,
+ * standard error declaration, and the tools calling interface without
+ * expanding full parameter schemas inline.
+ * @param _schemas - the tool schemas (kept for interface compatibility).
  * @returns the complete section text.
  */
-export function renderToolsSdk(schemas: ToolSdkSchema[]): string {
-  const sorted = [...schemas].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
-  const argsMembers: string[] = []
-  const outputMembers: string[] = []
-  for (const schema of sorted) {
-    argsMembers.push(...docLines(schema.description, 1))
-    argsMembers.push(`${pad(1)}${renderKey(schema.name)}: ${jsonSchemaToTs(schema.parameters, 1)};`)
-    outputMembers.push(`${pad(1)}${renderKey(schema.name)}: ${jsonSchemaToTs(schema.output, 1)};`)
-  }
-  const argsMap = `interface ToolArgsMap {${argsMembers.length > 0 ? `\n${argsMembers.join('\n')}\n` : ''}}`
-  const outputMap = `interface ToolOutputMap {${outputMembers.length > 0 ? `\n${outputMembers.join('\n')}\n` : ''}}`
-  const declaration = [
-    argsMap,
-    outputMap,
-    'type ToolName = keyof ToolOutputMap',
-    ['declare class ToolCallError extends Error {', '  readonly name: "ToolCallError";', '  readonly toolName: ToolName;', '}'].join('\n'),
-    ['declare const tools: {', '  [K in ToolName]: (args: ToolArgsMap[K]) => Promise<ToolOutputMap[K]>;', '}'].join('\n'),
-  ].join('\n\n')
-  const jsonValue = 'type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }'
-  return `${SDK_INSTRUCTIONS}${renderBashExample(sorted)}\n\n${SDK_PROGRAM_INSTRUCTIONS}\n\n\`\`\`ts\n${jsonValue}\n\n${declaration}\n\`\`\``
+export function renderToolsSdk(_schemas: ToolSdkSchema[] = []): string {
+  return SDK_INSTRUCTIONS
 }
