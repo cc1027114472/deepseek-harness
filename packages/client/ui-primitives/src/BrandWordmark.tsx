@@ -1,5 +1,4 @@
 // Mowan (魔丸) brand wordmark.
-
 import type { IconProps } from './icons/props.ts'
 import { FishLogo } from './FishLogo.tsx'
 

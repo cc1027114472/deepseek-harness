@@ -4,7 +4,7 @@
  * The shell renders the surrounding chrome (button, nav heading row) and
  * reads each entry's `label` option for aria text.
  */
-import { IconSettingsOutline14, IconSettingsOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconSettingsOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { useUpdateManager } from './update-manager.ts'
 import css from './chrome.module.css'
@@ -27,7 +27,7 @@ export function TriggerContent({ wide, t }: TriggerContentProps) {
   return (
     <div className={css.triggerWrapper}>
       <span className={css.iconWrapper}>
-        {wide ? <IconSettingsOutline16 size={16} /> : <IconSettingsOutline14 size={18} />}
+        <IconSettingsOutlineMedium size={wide ? 16 : 18} />
         {hasUpdate && <span className={css.updateBadge} title="发现新版本，点击查看" />}
       </span>
       {wide && <span className={css.triggerLabel}>{t('trigger')}</span>}

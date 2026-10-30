@@ -8,7 +8,6 @@ import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ReadResultView, ToolResult } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
-import type {} from '@deepseek-ai/dsh-system-prompt'
 import { buildWindow, formatReadOutput, langFromPath, readMetaFromMeta } from './read-render.ts'
 import { resolveRegularReadTarget } from './read-target.ts'
 
@@ -62,18 +61,17 @@ export function parseReadArgs(args: { file_path: string; offset?: number; limit?
 }
 
 /**
- * Register the `read` tool and its system-prompt guidance.
+ * Register the `read` tool and its scope-aware system-prompt guidance.
  * @param ctx - the plugin context; registrations are effects scoped to it, and execution uses its `fs` service.
  * @param caps - the deployment's resolved read caps (plugin config after defaulting).
  */
 export function applyReadTool(ctx: Context, caps: ReadToolCaps): void {
   ctx.systemPrompt.section({
     name: 'tool:read',
-    order: 100,
-    text: 'Use the read tool — not shell commands like cat — to inspect text files. Results include line numbers. '
-      + 'Prefer reading a sufficient, wide window of context in a single call (100–300 lines for functions or modules) '
-      + 'rather than issuing multiple small sequential calls to adjacent ranges of the same file. '
-      + 'Use offset and limit when navigating very large files.',
+    order: ctx.systemPrompt.getSectionOrder('TOOL_READ'),
+    text: ({ scope }) => ctx.tools.get('read', scope) === undefined
+      ? ''
+      : 'Use the read tool — not shell commands like cat — to inspect text files. Results include line numbers. Use offset and limit to continue reading large files.',
   })
 
   ctx.tools.register(defineTool({
@@ -82,11 +80,7 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps): void {
     parameters: {
       file_path: { type: 'string', required: true, description: 'Path to read, resolved by the filesystem backend.' },
       offset: { type: 'number', description: '1-based first line to return. Defaults to 1.' },
-      limit: {
-        type: 'number',
-        description: `Maximum number of lines to return. Defaults to ${caps.limit}. `
-          + 'Prefer default or generous limits over tight 20–40 line fragments when inspecting substantial logic.',
-      },
+      limit: { type: 'number', description: `Maximum number of lines to return. Defaults to ${caps.limit}.` },
     },
     output: {
       schema: {

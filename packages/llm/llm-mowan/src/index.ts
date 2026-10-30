@@ -4,13 +4,17 @@
  * @module @deepseek-ai/dsh-llm-mowan
  */
 
+import type {} from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/cordis-plugin-loader'
+
 import type { Context } from '@deepseek-ai/cordis'
+import { isVolatile } from '@deepseek-ai/cosmokit'
 import z from '@deepseek-ai/schemastery'
 import { assertUsableApiKey, LlmError, RetryPolicySchema } from '@deepseek-ai/dsh-llm'
 import type { AdapterRegistrationHandle, ModelModality } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf } from '@deepseek-ai/dsh-launch-environment'
-import { deepEqualJson, installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import {
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
@@ -27,10 +31,15 @@ import type { MowanCatalogModel, MowanConfig } from './types.ts'
 
 export type { MowanCatalogModel, MowanConfig } from './types.ts'
 
+interface StoredModelDiscoveryProfile {
+  readonly headers: Readonly<Record<string, string>> | undefined
+  readonly resolveApiKey: () => Promise<string | undefined>
+}
+
 export const name = 'llm-mowan'
 export const inject = ['llm']
 
-const NS = settingsNamespace('llm-mowan')
+const NS = 'llm-mowan'
 export const PROVIDER = 'mowan'
 export const PUBLIC_BASE_URL = 'https://ukapi.cc/v1beta'
 export const DEFAULT_API_KEY_ENV = 'MOWAN_API_KEY'
@@ -54,25 +63,33 @@ const catalogModel: z<MowanCatalogModel> = z.object({
   inputModalities: z.array(z.union(MODEL_MODALITIES)).min(1).default(['text', 'image']),
 })
 
-export const Config: z<MowanConfig> = z.object({
-  apiKeyEnv: z.string().role('credential-ref').default(DEFAULT_API_KEY_ENV),
-  baseURL: z.string().default(PUBLIC_BASE_URL),
-  maxTokens: z.number().step(1).min(1).default(32768),
-  defaultContextWindow: z.number().step(1).min(1).default(1000000),
-  models: z.array(catalogModel).default(DEFAULT_MODELS),
-  streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
-  retryPolicy: RetryPolicySchema,
+export const Config = z.object({
+  apiKeyEnv: z.string().role('credential-ref').default(DEFAULT_API_KEY_ENV).volatile(),
+  baseURL: z.string().default(PUBLIC_BASE_URL).volatile(),
+  maxTokens: z.number().step(1).min(1).default(32768).volatile(),
+  defaultContextWindow: z.number().step(1).min(1).default(1000000).volatile(),
+  models: z.array(catalogModel).default(DEFAULT_MODELS).volatile(),
+  streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS).volatile(),
+  retryPolicy: RetryPolicySchema.volatile(),
 })
 
-export function apply(ctx: Context, config: MowanConfig): void {
-  let current: () => MowanConfig = () => config
+function plainOptions(raw: any): MowanConfig {
+  if (!raw || typeof raw !== 'object') return {}
+  return Object.fromEntries(
+    Object.entries(raw).map(([key, value]) => [key, isVolatile(value) ? value.get() : value]),
+  )
+}
+
+export function apply(ctx: Context, config: any): void {
+  ctx.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ctx.fiber)) })
+  const settingsNs = ctx.fiber.entry?.options.id ?? NS
+
   const options = (): MowanConfig => {
-    const raw = current()
+    const raw = plainOptions(config)
     const merged: MowanConfig = {
-      ...config,
       ...raw,
-      baseURL: raw.baseURL ?? config.baseURL ?? PUBLIC_BASE_URL,
-      models: raw.models ?? config.models ?? DEFAULT_MODELS,
+      baseURL: raw.baseURL ?? PUBLIC_BASE_URL,
+      models: raw.models ?? DEFAULT_MODELS,
     }
     return merged
   }
@@ -143,22 +160,26 @@ export function apply(ctx: Context, config: MowanConfig): void {
   })
 
   ctx.llm.registerConfigurableProviders([
-    { provider: PROVIDER, displayName: '魔丸', settingsNs: NS, settingsPath: [] },
+    { provider: PROVIDER, displayName: '魔丸', settingsNs, settingsPath: [] },
   ])
 
-  ctx.llm.registerModelDiscovery(NS, async (request) => {
+  const storedDiscoveryProfile = (): StoredModelDiscoveryProfile => ({
+    headers: undefined,
+    resolveApiKey: async () => {
+      try {
+        return await resolveApiKey(PROVIDER, profiles().get(PROVIDER)!)
+      } catch {
+        return undefined
+      }
+    },
+  })
+
+  ctx.llm.registerModelDiscovery(settingsNs, (request, signal) => {
     const conf = options()
     const baseURL = request.baseURL ?? conf.baseURL ?? PUBLIC_BASE_URL
-    const api = request.api ?? 'google-generative-ai'
     return discoverModels(
-      { ...request, baseURL, api },
-      async () => {
-        try {
-          return await resolveApiKey(PROVIDER, profiles().get(PROVIDER)!)
-        } catch {
-          return undefined
-        }
-      },
+      { ...request, baseURL, ...signal === undefined ? {} : { signal } },
+      storedDiscoveryProfile,
     )
   })
 
@@ -183,10 +204,12 @@ export function apply(ctx: Context, config: MowanConfig): void {
 
   ensureRegistrationFacts()
 
-  installSettingsSection(ctx, NS, Config, config, {
-    setSource: (source) => {
-      current = source
-    },
-    onChange: ensureRegistrationFacts,
+  ctx.on('loader/volatile-update', () => {
+    try {
+      ensureRegistrationFacts()
+    } catch (error) {
+      ctx.logger.error('llm-mowan: configuration conflicts with an existing provider route')
+      ctx.logger.error(error)
+    }
   })
 }

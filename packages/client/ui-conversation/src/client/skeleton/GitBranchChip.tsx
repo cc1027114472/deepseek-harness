@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { IconBranchOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconBranchOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './HeroShell.module.css'
 
 export interface GitBranchChipProps {
@@ -51,7 +51,7 @@ export function GitBranchChip({ cwd, className }: GitBranchChipProps) {
       aria-label={`当前 Git 分支: ${branch}`}
       onClick={() => { void fetchBranch() }}
     >
-      <IconBranchOutline16 className={css.branchIcon} size={14} />
+      <IconBranchOutlineRegular className={css.branchIcon} size={14} />
       <span className={css.branchLabel}>{branch}</span>
     </button>
   )

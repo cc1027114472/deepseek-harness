@@ -3,20 +3,37 @@
  * slot without defining a service.
  */
 import type { Context } from '@deepseek-ai/cordis'
+import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: the 'conversation.view' SlotMap row (declared by the slot's
 // owning package) must be in the program for the register calls to type.
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { en, NS, zh } from './locales.ts'
 import { registerTrajectoryAssistantDefinition } from './trajectory-assistant-definition.ts'
 import { registerTrajectoryCompactionDefinitions } from './trajectory-compaction-definition.ts'
 import { registerTrajectoryMessageDefinitions } from './trajectory-message-definitions.ts'
 import { registerTrajectoryRequestHeaderDefinition } from './trajectory-request-header-definition.ts'
+import {
+  EMPTY_TRAJECTORY_SNAPSHOT, registerTrajectoryConversationView,
+} from './trajectory-snapshot-builder.ts'
+import type { TrajectorySnapshot } from './trajectory-contract.ts'
 import { registerTrajectoryToolDefinition } from './trajectory-tool-definition.ts'
 
+export type { TrajectoryKey } from './locales.ts'
+export type {
+  TrajectoryContribution,
+  TrajectoryConversationViewNode,
+  TrajectoryRequestHeaderState,
+  TrajectorySnapshot,
+  UseTrajectory,
+} from './trajectory-contract.ts'
+
 /** Required services: the conversation slot, registries, ordinary Session paging, and the locale service. */
-export const inject = ['slots', 'conversationEvents', 'conversationViews', 'sessions', 'locale']
+export const inject = ['slots', 'sessions', 'uiSession', 'uiConversation', 'locale']
 
 /**
  * Client plugin body: register the trajectory view tab. The registration
@@ -24,11 +41,29 @@ export const inject = ['slots', 'conversationEvents', 'conversationViews', 'sess
  * @param ctx - client root context.
  */
 export function apply(ctx: Context): void {
+  const trajectorySources = new WeakMap<SessionBinding, ObservableSnapshot<TrajectorySnapshot>>()
+  const trajectorySource = (binding: SessionBinding): ObservableSnapshot<TrajectorySnapshot> => {
+    let source = trajectorySources.get(binding)
+    if (source === undefined) {
+      const target = ctx.uiConversation.binding(binding).target('trajectory')
+      source = {
+        getSnapshot: () => target.getSnapshot() ?? EMPTY_TRAJECTORY_SNAPSHOT,
+        subscribe: listener => target.subscribe(listener),
+      }
+      trajectorySources.set(binding, source)
+    }
+    return source
+  }
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-trajectory: dictionaries')
   registerTrajectoryMessageDefinitions(ctx)
   registerTrajectoryRequestHeaderDefinition(ctx)
   registerTrajectoryAssistantDefinition(ctx)
   registerTrajectoryToolDefinition(ctx)
   registerTrajectoryCompactionDefinitions(ctx)
+  registerTrajectoryConversationView(ctx)
+  ctx.uiSession.provide({
+    hooks: ['trajectory'],
+    resolve: binding => ({ hooks: { trajectory: trajectorySource(binding) } }),
+  })
   // Trajectory tab disabled for mowan-agent release
 }

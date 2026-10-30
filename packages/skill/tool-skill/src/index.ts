@@ -10,7 +10,7 @@ import z from '@deepseek-ai/schemastery'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import type { UserMessage } from '@deepseek-ai/dsh-session'
+import { SessionSeq, type UserMessage } from '@deepseek-ai/dsh-session'
 import {
   escapeText,
   isModelInvocable,
@@ -200,7 +200,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       }))
     }
     if (injections.length === 0) return decision
-    return { kind: 'enter', messages: [...decision.messages, ...injections] }
+    return { ...decision, messages: [...decision.messages, ...injections] }
   })
 
   // Register after the tool so reverse teardown removes guidance first. Exact definition
@@ -231,19 +231,19 @@ export function apply(ctx: Context, config: Config = {}): void {
     if (history.visibleDigest === digest) {
       return existing === undefined
         ? decision
-        : { kind: 'enter', messages: decision.messages.filter(message => message.id !== existing.message.id) }
+        : { ...decision, messages: decision.messages.filter(message => message.id !== existing.message.id) }
     }
     if (existing !== undefined && digestCatalogEntries(existing.entries) === digest) return decision
     if (!history.published && skills.length === 0) {
       return existing === undefined
         ? decision
-        : { kind: 'enter', messages: decision.messages.filter(message => message.id !== existing.message.id) }
+        : { ...decision, messages: decision.messages.filter(message => message.id !== existing.message.id) }
     }
     const catalog = history.published
       ? renderCatalogUpdate(entries)
       : renderCatalogMessage(entries)
     return {
-      kind: 'enter',
+      ...decision,
       messages: existing === undefined
         ? [...decision.messages, catalog]
         : decision.messages.map(message => message.id === existing.message.id ? catalog : message),
@@ -338,7 +338,7 @@ function digestCatalogEntries(entries: SkillCatalogSource['entries']): string {
  * Entries of one durable catalog message, or undefined when the record is not a
  * usable catalog.
  *
- * `agent.session.events` may be a resumed, forked, or externally written seed,
+ * `agent.session.snapshotEvents()` may contain a resumed, forked, or externally written seed,
  * and seed validation only guarantees a source object with a non-empty `kind`;
  * no per-kind field is checked there. An unreadable record is therefore treated
  * as "not this plugin's catalog" — the posture the replaced content digest had —
@@ -360,12 +360,13 @@ function readCatalogEntries(source: unknown): SkillCatalogSource['entries'] | un
 
 function catalogHistory(agent: Agent): { visibleDigest?: string; published: boolean } {
   const visible = new Set(agent.session.surface.nodes)
-  const events = agent.session.events
   let published = false
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    // The loop bounds prove the read-only event view contains this index.
-    // oxlint-disable-next-line typescript/no-non-null-assertion
-    const event = events[index]!
+  for (let index = agent.session.seq - 1; index >= 0; index -= 1) {
+    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+    const event = agent.session.eventAt(SessionSeq(index))
+    if (event === undefined) {
+      throw new Error(`skill catalog cannot read seq ${String(index)} below the current Session length`)
+    }
     if (event.type !== 'user/message' || event.data.source.kind !== 'skill-catalog') continue
     const entries = readCatalogEntries(event.data.source)
     if (entries === undefined) continue
@@ -403,7 +404,7 @@ function catalogDescription(value: string, maxLength: number): string {
 
   // 2. Extract the first sentence (Chinese period/exclamation/question or English terminator)
   const sentenceMatch = text.match(/^(.+?(?:[。！？]|\.(?=\s|$)))/u)
-  let candidate = sentenceMatch ? sentenceMatch[1]!.trim() : text
+  let candidate = sentenceMatch?.[1] ? sentenceMatch[1].trim() : text
 
   // 3. If first sentence is too short (< 15 chars) and text has more content, keep text up to boundary
   if (candidate.length < 15 && text.length > candidate.length) {

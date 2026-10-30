@@ -8,40 +8,27 @@
  * @module dsh-llm-pi-ai/stream
  */
 
-import { CallId, CONTEXT_WINDOW_EXCEEDED_CODE, EMPTY_RESPONSE_CODE, isContextWindowExceededError, isQuotaExceededError, LlmError, QUOTA_EXCEEDED_CODE } from '@deepseek-ai/dsh-llm'
-import type { FinishReason, StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
-import { isContextOverflow } from '@earendil-works/pi-ai'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import { CONTEXT_WINDOW_EXCEEDED_CODE, EMPTY_RESPONSE_CODE, isContextWindowExceededError, isQuotaExceededError, LlmError, QUOTA_EXCEEDED_CODE } from '@deepseek-ai/dsh-llm'
+import type { FinishReason, StreamChunk, TokenUsage, ToolCallId } from '@deepseek-ai/dsh-llm'
+import { isContextOverflow } from '@earendil-works/pi-ai/utils/overflow'
 import type { AssistantMessage, AssistantMessageEvent, Usage as PiUsage } from '@earendil-works/pi-ai'
 import { toPiReplayState } from './replay.ts'
 
 /**
  * Map pi-ai usage (reasoning folded into output by pi-ai).
  * @param usage - cumulative usage from the terminal pi-ai event.
- * @returns harness counts; cache fields appear only when non-zero (pi-ai reports zeros, not absence).
+ * @returns harness counts with pi-ai's exact total; cache fields appear only
+ *   when non-zero (pi-ai reports zeros, not absence).
  */
 export function mapUsage(usage: PiUsage): TokenUsage {
   return {
     inputTokens: usage.input,
     outputTokens: usage.output,
+    totalTokens: usage.totalTokens,
     ...usage.cacheRead > 0 ? { cacheReadTokens: usage.cacheRead } : {},
     ...usage.cacheWrite > 0 ? { cacheWriteTokens: usage.cacheWrite } : {},
   }
-}
-
-function classifyHttpStatusCode(status: number, detailText?: string): string | undefined {
-  if (status === 401 || status === 403) return 'AUTH'
-  if (status === 413) return 'INVALID_REQUEST'
-  if (status === 429) {
-    if (detailText !== undefined && isQuotaExceededError(detailText)) return QUOTA_EXCEEDED_CODE
-    return 'RATE_LIMIT'
-  }
-  if (status === 400) {
-    if (detailText !== undefined && isContextWindowExceededError(detailText)) return CONTEXT_WINDOW_EXCEEDED_CODE
-    return 'INVALID_REQUEST'
-  }
-  if (status === 408 || status === 504) return 'TIMEOUT'
-  if (status >= 500 && status <= 599) return 'SERVER'
-  return undefined
 }
 
 // XXX(pi-ai upstream): pi-ai flattens the caught error to `error.message`
@@ -53,83 +40,44 @@ function classifyHttpStatusCode(status: number, detailText?: string): string | u
 // If pi-ai ever forwards the original Error (or a fetch/dispatcher hook that lets
 // us capture the cause ourselves), classify on `code`/`cause` instead of text.
 function classifyPiAiError(message: string): string {
-  // 1. If message is formatted as JSON error payload, extract code/status
-  if (message.trim().startsWith('{')) {
-    try {
-      const parsed = JSON.parse(message) as {
-        error?: { code?: unknown; status?: unknown; message?: unknown }
-        code?: unknown
-        status?: unknown
-        message?: unknown
-      }
-      const err = parsed.error ?? parsed
-      const rawCode = err.code ?? err.status
-      const numericCode = typeof rawCode === 'number' && Number.isInteger(rawCode)
-        ? rawCode
-        : typeof rawCode === 'string' && /^\d{3}$/.test(rawCode)
-          ? Number(rawCode)
-          : undefined
-      const detail = typeof err.message === 'string' ? err.message : ''
-      if (numericCode !== undefined) {
-        const mapped = classifyHttpStatusCode(numericCode, detail)
-        if (mapped !== undefined) return mapped
-      }
-      const statusStr = typeof err.status === 'string' ? err.status : ''
-      if (statusStr === 'RESOURCE_EXHAUSTED') {
-        return isQuotaExceededError(detail) ? QUOTA_EXCEEDED_CODE : 'RATE_LIMIT'
-      }
-      if (statusStr === 'UNAUTHENTICATED' || statusStr === 'PERMISSION_DENIED') return 'AUTH'
-      if (statusStr === 'INTERNAL' || statusStr === 'UNAVAILABLE') return 'SERVER'
-      if (statusStr === 'INVALID_ARGUMENT') {
-        return isContextWindowExceededError(detail) ? CONTEXT_WINDOW_EXCEEDED_CODE : 'INVALID_REQUEST'
-      }
-      if (statusStr === 'DEADLINE_EXCEEDED') return 'TIMEOUT'
-      if (detail.length > 0) {
-        message = detail
-      }
-    } catch {
-      // Not valid JSON, continue to string/HTML pattern matching
+  try {
+    const parsed = JSON.parse(message)
+    const rawStatus = parsed?.status ?? parsed?.code ?? parsed?.error?.code ?? parsed?.error?.status
+    const status = typeof rawStatus === 'number' ? rawStatus : Number.parseInt(String(rawStatus), 10)
+    if (Number.isInteger(status) && status >= 100 && status <= 599) {
+      if (status === 401 || status === 403) return 'AUTH'
+      if (status === 429) return 'RATE_LIMIT'
+      if (status === 413 || status === 400) return 'INVALID_REQUEST'
+      if (status >= 500) return 'SERVER'
     }
+  } catch {
+    // Non-JSON error message; proceed with text heuristics.
   }
 
-  // 2. If message contains HTML error page (e.g. Cloudflare / Nginx 5xx / 4xx)
-  const titleCodeMatch = /<title[^>]*>.*?(\d{3}).*?<\/title>/is.exec(message)
-  if (titleCodeMatch !== null) {
-    const code = Number(titleCodeMatch[1])
-    const mapped = classifyHttpStatusCode(code, message)
-    if (mapped !== undefined) return mapped
-  }
-  const cfCodeMatch = /errorcode_(\d{3})|Error code\s*(\d{3})/i.exec(message)
-  if (cfCodeMatch !== null) {
-    const code = Number(cfCodeMatch[1] ?? cfCodeMatch[2])
-    const mapped = classifyHttpStatusCode(code, message)
-    if (mapped !== undefined) return mapped
-  }
+  const cleanMessage = message.includes('<') ? message.replace(/<[^>]+>/g, ' ') : message
 
-  // 3. String / regex pattern matching with lookbehind to avoid CSS / hyphenated token false positives
-  if (/(?<![-#@\w])(?:401|403)(?!\w)/.test(message) || /\bunauthenticated|unauthorized|forbidden\b/i.test(message)) return 'AUTH'
-  if (isQuotaExceededError(message)) return QUOTA_EXCEEDED_CODE
-  if (/(?<![-#@\w])429(?!\w)/.test(message) || /rate.?limit/i.test(message)) return 'RATE_LIMIT'
-  if (/(?<![-#@\w])5\d\d(?!\w)/.test(message) || /\b(?:bad gateway|gateway timeout|service unavailable|internal server error)\b/i.test(message)) return 'SERVER'
-  if (/(?<![-#@\w])(?:408|504)(?!\w)/.test(message) || /\btime(?:d)?\s*out\b|timeout/i.test(message)) return 'TIMEOUT'
-  if (/\b413\b|failed to buffer the request body:\s*length limit exceeded|payload too large|request body too large/i.test(message)) return 'INVALID_REQUEST'
-  if (/(?<![-#@\w])400(?!\w)|invalid.?request/i.test(message)) {
-    if (isContextWindowExceededError(message)) return CONTEXT_WINDOW_EXCEEDED_CODE
-    return 'INVALID_REQUEST'
-  }
+  if (/\b(?:401|403)\b/.test(cleanMessage)) return 'AUTH'
+  if (isQuotaExceededError(cleanMessage)) return QUOTA_EXCEEDED_CODE
+  if (/\b429\b|rate.?limit/i.test(cleanMessage)) return 'RATE_LIMIT'
+  // A rejected request body (gateway or provider size cap): resending the
+  // same request cannot succeed, so it is invalid, not transient.
+  if (/\b413\b|failed to buffer the request body:\s*length limit exceeded|payload too large|request body too large/i.test(cleanMessage)) return 'INVALID_REQUEST'
+  if (/\b400\b|invalid.?request/i.test(cleanMessage)) return 'INVALID_REQUEST'
+  if (/\b5\d\d\b/.test(cleanMessage)) return 'SERVER'
+  if (/\btime(?:d)?\s*out\b|timeout/i.test(cleanMessage)) return 'TIMEOUT'
   // A stream truncated before the provider's terminal event: each pi-ai provider
   // throws its own wording when the wire closes mid-response without a terminal
   // event (`… stream ended before message_stop`, `… before a terminal response
   // event`, `… ended without a terminal event`, `Stream ended without
   // finish_reason`). The connection dropped mid-response, so this is a transport
   // truncation, not a model-level error.
-  if (/stream ended (?:before|without)\b/i.test(message)) return 'TRANSPORT'
-  if (/\b(?:network|connection|socket|fetch)\b|\bECONN[A-Z]+\b/i.test(message)
-    || /\b(?:other side closed|HTTP2 request did not get a response|WebSocket closed unexpectedly)\b/i.test(message)
+  if (/stream ended (?:before|without)\b/i.test(cleanMessage)) return 'TRANSPORT'
+  if (/\b(?:network|connection|socket|fetch)\b|\bECONN[A-Z]+\b/i.test(cleanMessage)
+    || /\b(?:other side closed|HTTP2 request did not get a response|WebSocket closed unexpectedly)\b/i.test(cleanMessage)
     // undici renders a mid-stream socket drop as a bare `terminated` (its
     // `cause` — the real SocketError — was flattened away upstream); Node's
     // stream layer says `Premature close`.
-    || /\bterminated\b|premature close/i.test(message)) {
+    || /\bterminated\b|premature close/i.test(cleanMessage)) {
     return 'TRANSPORT'
   }
   return 'PI_AI_ERROR'
@@ -142,7 +90,8 @@ function classifyPiAiError(message: string): string {
  * @returns the mapped harness reason. Recognized error text, `stop` usage above
  *   `contextWindow`, and zero-output `length` usage that fills the window map
  *   to `CONTEXT_WINDOW_EXCEEDED`; a `stop` with no content blocks maps to an
- *   `EMPTY_RESPONSE` error.
+ *   `EMPTY_RESPONSE` error, while terminal `pending` and `deferred` states map
+ *   to non-retryable `PI_AI_ERROR` failures.
  */
 export function mapStopReason(message: AssistantMessage, contextWindow?: number): FinishReason {
   const piAiOverflow = isContextOverflow(message, contextWindow)
@@ -175,6 +124,14 @@ export function mapStopReason(message: AssistantMessage, contextWindow?: number)
       return { kind: 'stop' }
     case 'length': return { kind: 'max-tokens' }
     case 'toolUse': return { kind: 'tool-calls' }
+    case 'pending': return {
+      kind: 'error',
+      failure: { message: `pi-ai stream for model "${message.model}" ended pending`, code: 'PI_AI_ERROR' },
+    }
+    case 'deferred': return {
+      kind: 'error',
+      failure: { message: `pi-ai deferred response for model "${message.model}" is not supported`, code: 'PI_AI_ERROR' },
+    }
     case 'aborted': return {
       kind: 'aborted',
       failure: { message: message.errorMessage ?? 'pi-ai stream aborted', code: 'ABORTED' },
@@ -192,12 +149,17 @@ export function mapStopReason(message: AssistantMessage, contextWindow?: number)
  * `finish` chunks (the harness protocol's other error-delivery style).
  * @param events - one assistant turn's pi-ai event stream.
  * @param contextWindow - resolved catalog capacity for usage-based overflow detection.
+ * @param callerSignal - caller cancellation state; an aborted caller makes any
+ *   in-band terminal error an aborted finish.
+ * @param requestedModel - request model identity recorded for durable replay.
  * @returns the harness chunks, ending with `usage` then `finish`; throws
  *   `LlmError` (`STREAM_CLOSED`) if the source ends without a terminal event.
  */
 export async function* toStreamChunks(
   events: AsyncIterable<AssistantMessageEvent>,
   contextWindow?: number,
+  callerSignal?: AbortSignal,
+  requestedModel?: string,
 ): AsyncGenerator<StreamChunk> {
   // pi-ai contentIndex ↔ our block index map 1:1 (both count blocks from 0
   // in stream order), but we track ids per index for tool calls.
@@ -239,7 +201,7 @@ export async function* toStreamChunks(
         yield {
           type: 'tool-call-delta',
           index: event.contentIndex,
-          id: CallId(known?.id ?? ''),
+          id: brandString<ToolCallId>(known?.id ?? ''),
           ...known?.name !== undefined && known.name.length > 0 ? { name: known.name } : {},
           argumentsDelta: event.delta,
         }
@@ -251,7 +213,7 @@ export async function* toStreamChunks(
           index: event.contentIndex,
           block: {
             type: 'tool-call',
-            id: CallId(event.toolCall.id),
+            id: brandString<ToolCallId>(event.toolCall.id),
             name: event.toolCall.name,
             // pi-ai hands back the PARSED arguments; the harness vocabulary
             // keeps the raw string.
@@ -264,14 +226,20 @@ export async function* toStreamChunks(
         yield {
           type: 'finish',
           reason: mapStopReason(event.message, contextWindow),
-          replayState: toPiReplayState(event.message),
+          replayState: toPiReplayState(event.message, requestedModel),
         }
         return
       case 'error':
         // In-stream error delivery (pi-ai's style) → error finish chunk
         // (the harness's other sanctioned error path besides throwing).
         yield { type: 'usage', usage: mapUsage(event.error.usage) }
-        yield { type: 'finish', reason: mapStopReason(event.error, contextWindow) }
+        yield {
+          type: 'finish',
+          reason: mapStopReason(
+            callerSignal?.aborted ? { ...event.error, stopReason: 'aborted' } : event.error,
+            contextWindow,
+          ),
+        }
         return
       // no default: AssistantMessageEvent is pi-ai's closed union; a new
       // event type should fail compilation here via tsc's exhaustiveness

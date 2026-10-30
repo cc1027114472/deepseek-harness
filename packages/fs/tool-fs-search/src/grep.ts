@@ -16,7 +16,6 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, SearchResultView, ToolResult } from '@deepseek-ai/dsh-tools'
 import type { RetainedItems } from '@deepseek-ai/dsh-output-retention'
 import type { SpillRef } from '@deepseek-ai/dsh-spill'
-import type {} from '@deepseek-ai/dsh-system-prompt'
 import type { GrepMatch } from './search-core.ts'
 import { SearchError, previewLine, retainGrepMatches, runRipgrep, toWorkdirRelative, trySaveFormattedResult } from './search-core.ts'
 import { grepSearchMeta, searchViewFromMeta } from './presentation.ts'
@@ -266,7 +265,7 @@ export function presentGrepResult(
 }
 
 /**
- * Register the `grep` tool and its system-prompt guidance.
+ * Register the `grep` tool and its scope-aware system-prompt guidance.
  *
  * @param ctx - the plugin context; registrations are effects scoped to it, and
  *   execution uses its `subprocess` service.
@@ -275,10 +274,11 @@ export function presentGrepResult(
 export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
   ctx.systemPrompt.section({
     name: 'tool:grep',
-    order: 104,
-    text: 'Use the grep tool — not shell grep or rg — to search file contents. '
-      + 'Use read on a matched file when you need surrounding context; '
-      + 'when inspecting multiple known occurrences or files, dispatch the read calls in parallel in the same response turn.',
+    order: ctx.systemPrompt.getSectionOrder('TOOL_GREP'),
+    text: ({ scope }) => ctx.tools.get('grep', scope) === undefined
+      ? ''
+      : 'Use the grep tool — not shell grep or rg — to search file contents.'
+        + (ctx.tools.get('read', scope) === undefined ? '' : ' Use read on a matched file when you need surrounding context.'),
   })
 
   const tool = defineTool({
@@ -292,6 +292,8 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
       include: { type: 'string', description: 'One glob filter for which files to search (e.g. "*.ts", "*.{js,jsx}"). Not a list; negation is not supported.' },
     },
     timeoutMs: caps.timeoutMs,
+    // Ripgrep execution is read-only and backed by a distinct subprocess, so concurrent calls never race.
+    isConcurrencySafe: () => true,
     output: {
       schema: {
         type: 'object',
@@ -319,8 +321,6 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
       presentationMeta: (_args, value) =>
         grepSearchMeta(retainGrepMatches(value.matches, caps.maxMatches, caps.maxLineBytes), caps.maxMetaBytes),
     },
-    // Ripgrep content search is read-only and spawns an isolated subprocess, so parallel runs are safe.
-    isConcurrencySafe: () => true,
     async execute(args, exec) {
       const input = parseGrepArgs(args)
       const run = await runRipgrep(ctx, exec, 'grep', buildGrepCommand(input), caps.rawOutputMaxBytes, caps.graceMs, caps.stderrMaxBytes)

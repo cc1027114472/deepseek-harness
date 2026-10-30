@@ -6,8 +6,7 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
-import { FileSettingsProvider } from '@deepseek-ai/dsh-settings-file'
+import { liveConfig } from '../../../settings/settings/tests/live-config.ts'
 import * as LlmMowan from '../src/index.ts'
 
 describe('llm-mowan', () => {
@@ -144,15 +143,11 @@ describe('llm-mowan', () => {
   })
 
   it('updates models dynamically when settings update', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'dsh-mowan-settings-'))
-    const settingsPath = join(dir, 'settings.yaml')
-
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
-    await ctx.plugin(FileSettingsProvider, { path: settingsPath, watch: false })
-    await ctx.plugin(LlmMowan, {})
+    const live = await liveConfig(ctx, LlmMowan, {})
 
-    await ctx.settings.update(settingsNamespace('llm-mowan'), {
+    await live.update({
       models: [{ id: 'dynamic-model', name: 'Dynamic Model' }],
     })
 
@@ -161,7 +156,6 @@ describe('llm-mowan', () => {
     expect(models[0]?.inputModalities).toEqual(['text', 'image'])
 
     await ctx.fiber.dispose()
-    await rm(dir, { recursive: true, force: true })
   })
 
   it('discovers models via ctx.llm.discoverModels with given apiKey', async () => {

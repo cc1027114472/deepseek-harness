@@ -39,6 +39,12 @@
       "path": "../../util/timeout"
     },
     {
+      "path": "../../util/values"
+    },
+    {
+      "path": "../../../vendor/loader"
+    },
+    {
       "path": "../../runtime-diagnostics/invariants"
     }
   ]

@@ -110,7 +110,10 @@ describe('renderToolsSdk', () => {
   const bash: ToolSdkSchema = {
     name: 'bash',
     description: 'Run a shell command.',
-    parameters: parameterSchemaSpecToJsonSchema({ command: { type: 'string', required: true } }) as unknown as Record<string, unknown>,
+    parameters: parameterSchemaSpecToJsonSchema({
+      command: { type: 'string', required: true },
+      description: { type: 'string', required: true },
+    }) as unknown as Record<string, unknown>,
     output: {
       type: 'object',
       additionalProperties: false,
@@ -136,7 +139,7 @@ describe('renderToolsSdk', () => {
     expect(text).toContain('reject with `ToolCallError`')
     expect(text).toContain('Promise.all')
     expect(text).toContain('await tools.name(args)')
-    // Verify length stays within compact budget (~300-800 characters)
+    // Verify length stays within compact budget (~300-800 characters across LF/CRLF)
     expect(text.length).toBeLessThan(800)
     expect(text.length).toBeGreaterThan(300)
   })
