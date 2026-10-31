@@ -1,12 +1,30 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import JavaScriptObfuscator from 'javascript-obfuscator';
+import { createRequire } from 'node:module';
+
+let JavaScriptObfuscator;
+try {
+  const mod = await import('javascript-obfuscator');
+  JavaScriptObfuscator = mod.default || mod;
+} catch {
+  try {
+    const req = createRequire('D:/GOWorks/mowan-harness/package.json');
+    JavaScriptObfuscator = req('javascript-obfuscator');
+  } catch (err) {
+    console.warn('javascript-obfuscator not found, skipping obfuscation:', err.message);
+  }
+}
 
 const rootDir = process.cwd();
 const flatDir = path.join(rootDir, 'dist', 'flat-bundle');
 
 if (!fs.existsSync(flatDir)) {
   console.log('flat-bundle directory not found, skipping obfuscation.');
+  process.exit(0);
+}
+
+if (!JavaScriptObfuscator) {
+  console.log('JavaScriptObfuscator is not available, skipping obfuscation.');
   process.exit(0);
 }
 
