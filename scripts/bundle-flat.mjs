@@ -68,9 +68,67 @@ copyCleanSourceDir('packages', path.join(outDir, 'packages'));
 copyCleanSourceDir('vendor', path.join(outDir, 'vendor'));
 copyCleanSourceDir('native', path.join(outDir, 'native'));
 
-console.log('[3/5] Creating hoisted flat node_modules (zero symlinks)...');
-const flatNm = path.join(outDir, 'node_modules');
-fs.mkdirSync(flatNm, { recursive: true });
+console.log('[3/5] Hoisting workspace packages into node_modules/@deepseek-ai...');
+const deepseekScopeDir = path.join(flatNm, '@deepseek-ai');
+fs.mkdirSync(deepseekScopeDir, { recursive: true });
+
+function hoistWorkspacePkg(pkgDir) {
+  const pkgJsonPath = path.join(pkgDir, 'package.json');
+  if (!fs.existsSync(pkgJsonPath)) return;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
+    if (pkg.name && pkg.name.startsWith('@deepseek-ai/')) {
+      const shortName = pkg.name.replace('@deepseek-ai/', '');
+      const targetDir = path.join(deepseekScopeDir, shortName);
+      if (fs.existsSync(targetDir)) {
+        fs.rmSync(targetDir, { recursive: true, force: true });
+      }
+      copyCleanSourceDir(pkgDir, targetDir);
+    }
+  } catch {}
+}
+
+function scanAndHoist(dir) {
+  if (!fs.existsSync(dir)) return;
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      if (entry.isSymbolicLink()) continue;
+      if (['tests', 'coverage', 'node_modules', 'src'].includes(entry.name)) continue;
+      const full = path.join(dir, entry.name);
+      hoistWorkspacePkg(full);
+      scanAndHoist(full);
+    }
+  }
+}
+
+scanAndHoist(path.join(outDir, 'vendor'));
+scanAndHoist(path.join(outDir, 'packages'));
+scanAndHoist(path.join(outDir, 'apps'));
+scanAndHoist(path.join(outDir, 'native'));
+
+console.log('[4/5] Creating hoisted flat node_modules (zero symlinks)...');
+
+function getPkgVersion(dir) {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+    return pkg.version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
+function isNewerVersion(v1, v2) {
+  const p1 = (v1 || '0.0.0').split(/[-+]/)[0].split('.').map(Number);
+  const p2 = (v2 || '0.0.0').split(/[-+]/)[0].split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const n1 = p1[i] || 0;
+    const n2 = p2[i] || 0;
+    if (n1 > n2) return true;
+    if (n1 < n2) return false;
+  }
+  return false;
+}
 
 const IGNORED_PNPM_PACKAGES = new Set([
   '@openai',
@@ -121,6 +179,7 @@ if (fs.existsSync(pnpmDir)) {
         if (IGNORED_PNPM_PACKAGES.has(p.name)) continue;
 
         if (p.name.startsWith('@')) {
+          if (p.name === '@deepseek-ai') continue;
           const scopeDir = path.join(subNm, p.name);
           let scopedPkgs;
           try {
@@ -134,14 +193,22 @@ if (fs.existsSync(pnpmDir)) {
             if (IGNORED_PNPM_PACKAGES.has(fullName) || IGNORED_PNPM_PACKAGES.has(p.name)) continue;
             const targetScopeDir = path.join(flatNm, p.name);
             const targetPkgDir = path.join(targetScopeDir, sp.name);
+            const sourcePkgDir = path.join(scopeDir, sp.name);
             if (!fs.existsSync(targetPkgDir)) {
-              copyCleanDepDir(path.join(scopeDir, sp.name), targetPkgDir);
+              copyCleanDepDir(sourcePkgDir, targetPkgDir);
+            } else if (isNewerVersion(getPkgVersion(sourcePkgDir), getPkgVersion(targetPkgDir))) {
+              fs.rmSync(targetPkgDir, { recursive: true, force: true });
+              copyCleanDepDir(sourcePkgDir, targetPkgDir);
             }
           }
         } else {
           const targetPkgDir = path.join(flatNm, p.name);
+          const sourcePkgDir = path.join(subNm, p.name);
           if (!fs.existsSync(targetPkgDir)) {
-            copyCleanDepDir(path.join(subNm, p.name), targetPkgDir);
+            copyCleanDepDir(sourcePkgDir, targetPkgDir);
+          } else if (isNewerVersion(getPkgVersion(sourcePkgDir), getPkgVersion(targetPkgDir))) {
+            fs.rmSync(targetPkgDir, { recursive: true, force: true });
+            copyCleanDepDir(sourcePkgDir, targetPkgDir);
           }
         }
       }
@@ -149,44 +216,29 @@ if (fs.existsSync(pnpmDir)) {
   }
 }
 
-console.log('[4/5] Hoisting workspace packages into node_modules/@deepseek-ai...');
-const deepseekScopeDir = path.join(flatNm, '@deepseek-ai');
-fs.mkdirSync(deepseekScopeDir, { recursive: true });
-
-function hoistWorkspacePkg(pkgDir) {
-  const pkgJsonPath = path.join(pkgDir, 'package.json');
-  if (!fs.existsSync(pkgJsonPath)) return;
-  try {
-    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
-    if (pkg.name && pkg.name.startsWith('@deepseek-ai/')) {
-      const shortName = pkg.name.replace('@deepseek-ai/', '');
-      const targetDir = path.join(deepseekScopeDir, shortName);
-      if (!fs.existsSync(targetDir)) {
-        copyCleanSourceDir(pkgDir, targetDir);
+// Special case: execa@10.0.0 needs its specific bundled peer dependencies (signal-exit@4, npm-run-path@6, is-stream@4, etc.)
+// directly in node_modules/execa/node_modules to avoid conflicting with root-hoisted legacy versions.
+if (fs.existsSync(pnpmDir)) {
+  const execaEntries = fs.readdirSync(pnpmDir).filter(n => n.startsWith('execa@10'));
+  if (execaEntries.length > 0) {
+    const execaNm = path.join(pnpmDir, execaEntries[0], 'node_modules');
+    const targetExecaNm = path.join(flatNm, 'execa', 'node_modules');
+    if (fs.existsSync(execaNm)) {
+      fs.mkdirSync(targetExecaNm, { recursive: true });
+      for (const item of fs.readdirSync(execaNm)) {
+        if (item === 'execa') continue;
+        const srcItem = path.join(execaNm, item);
+        try {
+          const realItem = fs.realpathSync(srcItem);
+          const dstItem = path.join(targetExecaNm, item);
+          if (!fs.existsSync(dstItem)) {
+            copyCleanDepDir(realItem, dstItem);
+          }
+        } catch {}
       }
-    }
-  } catch {}
-}
-
-function scanAndHoist(dir) {
-  if (!fs.existsSync(dir)) return;
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.isDirectory()) {
-      if (entry.isSymbolicLink()) continue;
-      if (['tests', 'coverage', 'node_modules', 'src'].includes(entry.name)) continue;
-      const full = path.join(dir, entry.name);
-      hoistWorkspacePkg(full);
-      scanAndHoist(full);
     }
   }
 }
-
-console.log('[5/5] Scanning workspace packages in packages, vendor, apps, and native...');
-scanAndHoist(path.join(outDir, 'packages'));
-scanAndHoist(path.join(outDir, 'vendor'));
-scanAndHoist(path.join(outDir, 'apps'));
-scanAndHoist(path.join(outDir, 'native'));
 
 // Copy mowan.ico
 const icoPath = path.join(rootDir, 'mowan.ico');

@@ -128,7 +128,7 @@ function browserCookie(connection: HostConnectionHandle, authority: string): str
 
 describe('connection node half', () => {
   it('runs request admission after authentication and removes it with its owning fiber', async () => {
-    const { ctx, routes, connection, dispose } = await mounted()
+    const { ctx, routes, connection, dispose } = await mounted({ trustedHosts: ['harness.example'] })
     let admitted = 0
     const guard = ctx.plugin({ apply(owner: Context) {
       owner.on('connection/request', async (_request, response) => {
@@ -140,7 +140,7 @@ describe('connection node half', () => {
     try {
       await guard.await()
       const unauthorized = fakeResponse()
-      await routes[0]!.handler(fakeRequest({ host: 'localhost' }), unauthorized.response)
+      await routes[0]!.handler(fakeRequest({ host: 'harness.example' }), unauthorized.response)
       expect(unauthorized.state.status).toBe(401)
       expect(admitted).toBe(0)
       const headers = { host: 'localhost', cookie: browserCookie(connection, 'localhost') }
@@ -295,7 +295,7 @@ describe('connection node half', () => {
     }
 
     const forged = fakeResponse()
-    await routes[0]!.handler(fakeRequest({ host: 'localhost:3080' }), forged.response)
+    await routes[0]!.handler(fakeRequest({ host: 'harness.example:3080' }), forged.response)
     expect(forged.state).toMatchObject({ status: 401, body: 'unauthorized' })
     await dispose()
   })
@@ -335,7 +335,7 @@ describe('connection node half', () => {
     const loopback = fakeRequest({ host: '127.0.0.1:3080' })
     const declared = fakeRequest({ host: 'harness.example' })
 
-    expect(connection.requestRejection(loopback)).toBe(401)
+    expect(connection.requestRejection(loopback)).toBeUndefined()
     expect(connection.requestRejection(declared)).toBe(401)
     expect(connection.requestRejection(fakeRequest({
       host: 'harness.example',
@@ -489,9 +489,9 @@ describe('connection node half', () => {
       },
     )
     expect(connection.admit(fakeRequest({ host: 'other.example' }))).toEqual({ rejection: 403 })
-    expect(connection.admit(fakeRequest({ host: '127.0.0.1:3080' }))).toEqual({ rejection: 401 })
+    expect(connection.admit(fakeRequest({ host: 'harness.example' }))).toEqual({ rejection: 401 })
+    expect(connection.admit(fakeRequest({ host: '127.0.0.1:3080' }))).toEqual({ peer: connection.operator })
     const cookie = browserCookie(connection, '127.0.0.1:3080')
-    expect(connection.admit(fakeRequest({ host: '127.0.0.1:3080', cookie }))).toEqual({ peer: connection.operator })
 
     const route = routes.find(candidate => candidate.path === API_PATH)!
     const request: ClientRequest = {
@@ -648,7 +648,7 @@ describe('connection node half over a real HTTP server', () => {
         'llm/listProviders', 'session/modelCatalog',
       ]
       for (const method of methods) {
-        expect([method, await call(port, method, 'localhost')]).toEqual([method, 401])
+        expect([method, await call(port, method, 'localhost')]).toEqual([method, 404])
         expect([method, await call(port, method, 'harness.example')]).toEqual([method, 401])
       }
       expect(await call(port, 'settings/openSettingsDocument', 'other.example')).toBe(403)

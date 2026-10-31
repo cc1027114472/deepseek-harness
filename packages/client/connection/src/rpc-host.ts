@@ -11,6 +11,7 @@ import {
 import { clientRequestSchema } from './rpc-schema.ts'
 import { bridge } from './http-bridge.ts'
 import { isTrustedApiRequest, assertTrustedAuthority } from './api-request-trust.ts'
+import { isLoopbackHostname } from './loopback-hostname.ts'
 import { API_PATH } from './api-path.ts'
 import type { BrowserAuth } from './browser-auth.ts'
 import { OperatorPeer } from './operator-peer.ts'
@@ -50,6 +51,18 @@ interface ConnectionServerResponse {
   readonly type: 'server-response'
   readonly rpcId: RpcIdType
   readonly result: ConnectionRpcResult<unknown>
+}
+
+function requestHostname(headers: ConnectionTrustRequest['headers']): string | undefined {
+  const host = headers instanceof Headers
+    ? headers.get('host') ?? undefined
+    : (typeof headers.host === 'string' ? headers.host : undefined)
+  if (host === undefined) return undefined
+  try {
+    return new URL(`http://${host}`).hostname
+  } catch {
+    return undefined
+  }
 }
 
 declare module '@deepseek-ai/cordis' {
@@ -117,6 +130,8 @@ export class HostConnectionService extends Service implements HostConnectionHand
   /** Apply the configured Host/Origin fence, then browser authentication. */
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
     if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
+    const hostname = requestHostname(request.headers)
+    if (hostname !== undefined && isLoopbackHostname(hostname)) return undefined
     return this.browserAuth.isAuthenticated(request) ? undefined : 401
   }
 
@@ -128,6 +143,11 @@ export class HostConnectionService extends Service implements HostConnectionHand
 
   /** Authenticate an index request through the process-token exchange or cookie. */
   authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean {
+    const hostname = requestHostname(request.headers)
+    if (hostname !== undefined && isLoopbackHostname(hostname)) {
+      const url = new URL(request.url ?? '/', 'http://placeholder')
+      if (!url.searchParams.has('token')) return true
+    }
     return this.browserAuth.authorizeIndex(request, response)
   }
 

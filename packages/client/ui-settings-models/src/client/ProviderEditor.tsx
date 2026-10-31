@@ -296,7 +296,6 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     const effectiveKey = keyToTest ?? (keyValue.length > 0 ? keyValue : undefined)
     const effectiveBaseURL = probeBaseURL ?? MOWAN_PUBLIC_BASE_URL
     const response = await operations.discoverModels('llm-mowan', {
-      settingsNs: 'llm-mowan',
       provider: 'mowan',
       baseURL: effectiveBaseURL,
       api: 'google-generative-ai',

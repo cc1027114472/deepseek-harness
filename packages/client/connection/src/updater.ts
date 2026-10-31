@@ -164,8 +164,9 @@ function fetchSingleUrl(updateUrl: string): Promise<CheckUpdateResult> {
 }
 
 export async function checkForUpdate(overrideUrl?: string): Promise<CheckUpdateResult> {
-  const candidates = overrideUrl
-    ? [overrideUrl]
+  const validOverride = typeof overrideUrl === 'string' && overrideUrl ? overrideUrl : undefined
+  const candidates = validOverride
+    ? [validOverride]
     : process.env.MOWAN_UPDATE_URL
       ? [process.env.MOWAN_UPDATE_URL]
       : DEFAULT_UPDATE_URLS

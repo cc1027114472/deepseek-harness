@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -306,8 +307,18 @@ func registerUninstall(installDir string) {
 		_ = cmd.Run()
 	}
 
+	version := "2.2.2"
+	if data, err := os.ReadFile(filepath.Join(installDir, "package.json")); err == nil {
+		var pkg struct {
+			Version string `json:"version"`
+		}
+		if json.Unmarshal(data, &pkg) == nil && pkg.Version != "" {
+			version = pkg.Version
+		}
+	}
+
 	regAdd("DisplayName", "REG_SZ", "魔丸 AI 智能助手 (Mowan Agent)")
-	regAdd("DisplayVersion", "REG_SZ", "2.1.6")
+	regAdd("DisplayVersion", "REG_SZ", version)
 	regAdd("Publisher", "REG_SZ", "魔丸团队")
 	regAdd("DisplayIcon", "REG_SZ", icoPath)
 	regAdd("UninstallString", "REG_SZ", fmt.Sprintf(`"%s"`, uninstExe))

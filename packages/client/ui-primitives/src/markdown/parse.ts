@@ -27,7 +27,7 @@ export function parseGfm(text: string): Root {
   return fromMarkdown(text, {
     extensions: [gfm(), cjkFriendlyStrong()],
     mdastExtensions: [gfmFromMarkdown()],
-  })
+  } as Parameters<typeof fromMarkdown>[1])
 }
 
 /**
@@ -40,5 +40,5 @@ export function parseGfmWithMath(text: string): Root {
   return fromMarkdown(text, {
     extensions: [gfm(), cjkFriendlyStrong(), mathCompatibility(), math()],
     mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()],
-  })
+  } as Parameters<typeof fromMarkdown>[1])
 }
