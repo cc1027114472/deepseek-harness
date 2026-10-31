@@ -339,7 +339,10 @@
       name: '@deepseek-ai/dsh-compaction-basic'
       config:
         thresholdRatio: 0.25
+        thresholdTokens: 90112
         retainRatio: 0.05
+        headroomTokens: 8192
+        maxTokens: 8192
         compactionRetries: 2
         maxOverflowRetries: 2
 
