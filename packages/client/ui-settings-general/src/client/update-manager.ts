@@ -63,6 +63,25 @@ export async function fetchUpdateCheck(force = false): Promise<UpdateInfo> {
   return globalUpdateInfo
 }
 
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+export function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+export function ensurePolling() {
+  if (pollTimer) return
+  pollTimer = setInterval(async () => {
+    const p = await pollDownloadStatus()
+    if (p.status !== 'downloading') {
+      stopPolling()
+    }
+  }, 800)
+}
+
 export async function pollDownloadStatus(): Promise<DownloadProgress> {
   try {
     const res = await fetch('/api/system/update/status')
@@ -70,6 +89,11 @@ export async function pollDownloadStatus(): Promise<DownloadProgress> {
       const data = (await res.json()) as { currentVersion: string; progress: DownloadProgress }
       globalProgress = data.progress
       notifyListeners()
+      if (globalProgress.status === 'downloading') {
+        ensurePolling()
+      } else {
+        stopPolling()
+      }
     }
   } catch {
     // ignore
@@ -87,6 +111,8 @@ export async function triggerDownload(downloadUrl?: string, sha256?: string): Pr
     if (res.ok) {
       globalProgress = { ...globalProgress, status: 'downloading', pct: 0 }
       notifyListeners()
+      ensurePolling()
+      void pollDownloadStatus()
       return true
     }
   } catch {
@@ -111,6 +137,7 @@ export async function triggerApply(): Promise<{ success: boolean; error?: string
 if (typeof window !== 'undefined') {
   setTimeout(() => {
     void fetchUpdateCheck(false)
+    void pollDownloadStatus()
   }, 3000)
 }
 
@@ -130,10 +157,7 @@ export function useUpdateManager() {
   // Poll progress when downloading
   useEffect(() => {
     if (globalProgress.status === 'downloading') {
-      const timer = setInterval(() => {
-        void pollDownloadStatus()
-      }, 800)
-      return () => clearInterval(timer)
+      ensurePolling()
     }
   }, [])
 
