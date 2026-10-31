@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -784,20 +785,16 @@ func main() {
 	logMsg("Final install target dir: %s", installDir)
 	killOldInstances(installDir)
 
-	zipReader, err := zip.OpenReader(exePath)
+	zipReader, err := openArchive(exePath)
 	if err != nil {
-		siblingZip := filepath.Join(filepath.Dir(exePath), "payload.zip")
-		zipReader, err = zip.OpenReader(siblingZip)
-		if err != nil {
-			logMsg("Failed to open zip reader: %v", err)
-			if ui != nil {
-				ui.Close()
-			}
-			if !isSilent {
-				showMessage("安装错误", "未能找到安装数据包 (payload.zip)。\n请确保安装程序完整无损。", 0x10)
-			}
-			return
+		logMsg("Failed to open zip reader: %v", err)
+		if ui != nil {
+			ui.Close()
 		}
+		if !isSilent {
+			showMessage("安装错误", "未能找到安装数据包 (payload.zip)。\n请确保安装程序完整无损。", 0x10)
+		}
+		return
 	}
 	defer zipReader.Close()
 
@@ -955,4 +952,86 @@ func main() {
 		logMsg("Launched Mowan-Agent.exe")
 	}
 	logMsg("Installer finished successfully")
+}
+
+type sectionReaderAt struct {
+	f      *os.File
+	offset int64
+}
+
+func (s *sectionReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
+	return s.f.ReadAt(p, off+s.offset)
+}
+
+type sfxZipCloser struct {
+	*zip.Reader
+	closer io.Closer
+}
+
+func (s *sfxZipCloser) Close() error {
+	if s.closer != nil {
+		return s.closer.Close()
+	}
+	return nil
+}
+
+func openArchive(exePath string) (*sfxZipCloser, error) {
+	// 1. Try standard zip.OpenReader first (works for standard 32-bit SFX archives)
+	if zr, err := zip.OpenReader(exePath); err == nil {
+		return &sfxZipCloser{Reader: &zr.Reader, closer: zr}, nil
+	}
+
+	// 2. Try SFX offset detection (handles Zip64 appended to PE executable)
+	if f, err := os.Open(exePath); err == nil {
+		fi, statErr := f.Stat()
+		if statErr == nil {
+			totalSize := fi.Size()
+			zipSig := []byte{0x50, 0x4b, 0x03, 0x04}
+			chunkSize := int64(1024 * 1024)
+			buf := make([]byte, chunkSize+4)
+			var cur int64 = 0
+			maxScan := int64(50 * 1024 * 1024)
+			if maxScan > totalSize {
+				maxScan = totalSize
+			}
+			for cur < maxScan {
+				n, rErr := f.ReadAt(buf, cur)
+				if n == 0 {
+					break
+				}
+				data := buf[:n]
+				searchPos := 0
+				for {
+					idx := bytes.Index(data[searchPos:], zipSig)
+					if idx == -1 {
+						break
+					}
+					candidateOffset := cur + int64(searchPos+idx)
+					candidateSize := totalSize - candidateOffset
+					zr, zErr := zip.NewReader(&sectionReaderAt{f: f, offset: candidateOffset}, candidateSize)
+					if zErr == nil && len(zr.File) > 0 {
+						logMsg("Found embedded SFX ZIP archive at offset %d (%d files)", candidateOffset, len(zr.File))
+						return &sfxZipCloser{Reader: zr, closer: f}, nil
+					}
+					searchPos += idx + 1
+					if searchPos >= len(data) {
+						break
+					}
+				}
+				cur += int64(n) - 4
+				if rErr != nil {
+					break
+				}
+			}
+		}
+		f.Close()
+	}
+
+	// 3. Fallback to sibling payload.zip
+	siblingZip := filepath.Join(filepath.Dir(exePath), "payload.zip")
+	if zr, err := zip.OpenReader(siblingZip); err == nil {
+		return &sfxZipCloser{Reader: &zr.Reader, closer: zr}, nil
+	}
+
+	return nil, fmt.Errorf("failed to open zip archive from %s or sibling payload.zip", exePath)
 }

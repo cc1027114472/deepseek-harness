@@ -62,7 +62,8 @@ if (Test-Path $UpdaterFile) {
 # Step 2: 执行构建打包
 if (-not $SkipBuild) {
     Write-Host "`n[2/7] 正在执行构建与安装包生成 (build-setup-exe.ps1)..." -ForegroundColor Yellow
-    & powershell.exe -ExecutionPolicy Bypass -File (Join-Path $ScriptDir "build-setup-exe.ps1")
+    $psExe = if (Get-Command pwsh -ErrorAction SilentlyContinue) { "pwsh.exe" } else { "powershell.exe" }
+    & $psExe -ExecutionPolicy Bypass -File (Join-Path $ScriptDir "build-setup-exe.ps1")
 } else {
     Write-Host "`n[2/7] 已跳过构建 (-SkipBuild)" -ForegroundColor DarkGray
 }
