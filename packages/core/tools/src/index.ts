@@ -56,7 +56,23 @@ declare module '@deepseek-ai/dsh-llm' {
  * (the call fails) and the route (inside the program), because a rule the
  * model can only discover by being denied is one it corrects too late.
  */
-const PTC_ONLY_INSTRUCTION = `\`${RUN_CODE_NAME}\` is the only tool you can call directly — a tool call naming any other tool fails. Reach every tool the SDK declares below from inside the program.`
+const PTC_ONLY_INSTRUCTION = `**CRITICAL: \`${RUN_CODE_NAME}\` requires BOTH \`code\` AND \`description\` on every call.**
+
+\`${RUN_CODE_NAME}\` is the only tool you can call directly — a tool call naming any other tool fails. Reach every tool the SDK declares below from inside the program.
+
+**Rules:**
+1. Every \`${RUN_CODE_NAME}\` call — including retries and the next call after a successful one — MUST include both non-empty \`code\` and \`description\`.
+2. \`code\` is the program body — write it FIRST.
+3. \`description\` is a short UI label (5-10 words) — it is NEVER a substitute for \`code\`.
+4. A call with only \`description\` fails immediately (\`missing required property "code"\`). Do NOT send only \`description\`.
+5. Execution environment: The program body runs inside an async function. NEVER use \`import\` or \`export\` statements (ES module syntax is unsupported inside function bodies and causes fatal syntax errors). All tools are globally available on the \`tools\` object.
+6. Tool invocation & argument structure: Always call tools as \`await tools.name({ key: value })\`. Tool arguments must be a single plain JSON object matching the tool's parameter schema. Never call a tool without arguments (e.g. \`tools.read()\`) or pass non-lossless JSON.
+7. Bound searches & avoid timeouts: Tool calls time out after 30 seconds. Never run broad recursive scans (e.g. \`**/*\`) over the root directory or huge folders like node_modules or .git. Always provide a narrow, specific path or pattern.
+8. Program return value: Any returned value via \`return <result>\` must be lossless JSON (plain object, array, string, number, boolean, or null). Never return raw Promises, functions, or complex class instances.
+
+**Examples:**
+✅ Valid: {"code":"const r = await tools.glob({pattern:\\"src/*.ts\\"}); return r;","description":"List workspace files"}
+❌ Invalid: {"description":"List workspace files"}`
 
 const SDK_RENDERERS: Record<string, (schemas: ToolSdkSchema[]) => string> = {
   typescript: renderToolsSdk,

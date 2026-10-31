@@ -251,9 +251,10 @@ const SDK_INSTRUCTIONS = `## Writing code for run_code
 
 \`run_code\` takes two required arguments: \`code\` (async TypeScript function body) and \`description\` (short UI label).
 Inside the function:
-- Call tools via \`await tools.name(args)\` (or \`tools["kebab-name"](args)\`). Arguments follow each tool's declared schema.
+- Never use \`import\`/\`export\` (async function body). Reach all tools on \`tools\`.
+- Call tools via \`await tools.name(args)\` (JSON object args). Bound searches (timeout 30s).
 - Concurrent read-only calls may run via \`await Promise.all([...])\`.
-- Return values via \`return <result>\` or \`console.log(...)\`. Tool failures reject with \`ToolCallError\`.
+- Return values via \`return <result>\` (lossless JSON). Tool failures reject with \`ToolCallError\`.
 
 \`\`\`ts
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
