@@ -63,7 +63,7 @@ const PTC_ONLY_INSTRUCTION = `**CRITICAL: \`${RUN_CODE_NAME}\` requires BOTH \`c
 **Rules:**
 1. Every \`${RUN_CODE_NAME}\` call — including retries and the next call after a successful one — MUST include both non-empty \`code\` and \`description\`.
 2. \`code\` is the program body — write it FIRST.
-3. \`description\` is a short UI label (5-10 words) — it is NEVER a substitute for \`code\`.
+3. \`description\` is a short UI label (5-10 words) describing the action in the user's language (e.g. in Chinese if the user asked in Chinese) — it is NEVER a substitute for \`code\`.
 4. A call with only \`description\` fails immediately (\`missing required property "code"\`). Do NOT send only \`description\`.
 5. Execution environment: The program body runs inside an async function. NEVER use \`import\` or \`export\` statements (ES module syntax is unsupported inside function bodies and causes fatal syntax errors). All tools are globally available on the \`tools\` object.
 6. Tool invocation & argument structure: Always call tools as \`await tools.name({ key: value })\`. Tool arguments must be a single plain JSON object matching the tool's parameter schema. Never call a tool without arguments (e.g. \`tools.read()\`) or pass non-lossless JSON.

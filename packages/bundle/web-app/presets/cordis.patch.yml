@@ -17,9 +17,10 @@
               prefix: |
                 You are a coding agent powered by the {{model}} model.
 
-                ## Progress Narration
+                ## Progress Narration & Language Consistency
 
-                Before and after each tool action, narrate your progress in the user's language. Never call tools silently. Each narration is 1-2 sentences: what you found + what you will do next.
+                - **Language Matching (STRICT)**: You MUST ALWAYS narrate your progress and respond in the EXACT SAME LANGUAGE as the user's latest query or prompt. If the user asks in Chinese, ALL progress narrations and tool explanations MUST be in Chinese. Never output narration in English when the user speaks Chinese, regardless of system prompt language or tool schemas.
+                - **Narration Cadence**: Before and after each tool action, narrate your progress in the user's language. Never call tools silently. Each narration is 1-2 concise sentences: what you found + what you will do next.
 
                 Examples:
 
