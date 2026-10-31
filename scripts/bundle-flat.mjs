@@ -3,6 +3,7 @@ import path from 'node:path';
 
 const rootDir = process.cwd();
 const outDir = path.join(rootDir, 'dist', 'flat-bundle');
+const flatNm = path.join(outDir, 'node_modules');
 
 if (fs.existsSync(outDir)) {
   fs.rmSync(outDir, { recursive: true, force: true });
