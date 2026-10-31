@@ -40,6 +40,7 @@ function copyCleanSourceDir(src, dest) {
     } else if (entry.isFile()) {
       if (entry.name.endsWith('.ts') || entry.name.endsWith('.map') || entry.name.endsWith('.log')) continue;
       if (entry.name.endsWith('.d.ts') || entry.name.endsWith('.md')) continue;
+      if (entry.name.endsWith('.exe') || entry.name.endsWith('.zip') || entry.name.endsWith('.tar')) continue;
       fs.copyFileSync(srcPath, destPath);
     }
   }
@@ -58,6 +59,7 @@ function copyCleanDepDir(src, dest) {
       copyCleanDepDir(srcPath, destPath);
     } else if (entry.isFile()) {
       if (entry.name.endsWith('.map') || entry.name.endsWith('.log')) continue;
+      if (entry.name.endsWith('.exe') || entry.name.endsWith('.zip') || entry.name.endsWith('.tar')) continue;
       fs.copyFileSync(srcPath, destPath);
     }
   }
@@ -252,10 +254,37 @@ if (fs.existsSync(icoPath)) {
 const webDist = path.join(outDir, 'apps', 'web', 'dist');
 if (fs.existsSync(webDist)) {
   for (const f of fs.readdirSync(webDist)) {
-    if (f.endsWith('Setup.exe')) {
+    if (f.endsWith('Setup.exe') || f.endsWith('.exe')) {
       fs.rmSync(path.join(webDist, f), { force: true });
     }
   }
+}
+
+// Flat bundle size audit & safety gate
+function calculateDirSize(dir) {
+  let size = 0;
+  try {
+    const list = fs.readdirSync(dir, { withFileTypes: true });
+    for (const item of list) {
+      const full = path.join(dir, item.name);
+      if (item.isDirectory()) {
+        size += calculateDirSize(full);
+      } else if (item.isFile()) {
+        size += fs.statSync(full).size;
+      }
+    }
+  } catch {}
+  return size;
+}
+
+const totalBundleSizeMB = Math.round((calculateDirSize(outDir) / (1024 * 1024)) * 10) / 10;
+console.log(`📦 Flat bundle size: ${totalBundleSizeMB} MB`);
+
+if (totalBundleSizeMB > 1200) {
+  console.error(`\n❌ [FATAL] 平铺打包体积异常膨胀: ${totalBundleSizeMB} MB (安全上限: 1200 MB)!`);
+  console.error('检测到可能有非预期大文件或递归拷贝产物被打包进 flat-bundle。');
+  console.error('请排查 apps/web/dist、node_modules 或查看文档 docs/release-packaging-guide.md。');
+  process.exit(1);
 }
 
 console.log('🎉 Clean flat bundle created successfully at:', outDir);

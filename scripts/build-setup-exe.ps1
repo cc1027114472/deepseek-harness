@@ -78,10 +78,6 @@ $desktop = [Environment]::GetFolderPath("Desktop")
 Copy-Item $setupExe "$desktop\Mowan-Agent-Setup.exe" -Force
 Copy-Item $harnessSetupExe "$desktop\Mowan-Harness-Setup.exe" -Force
 
-New-Item -ItemType Directory -Force -Path "$root\apps\web\dist" | Out-Null
-Copy-Item $setupExe "$root\apps\web\dist\Mowan-Agent-Setup.exe" -Force
-Copy-Item $harnessSetupExe "$root\apps\web\dist\Mowan-Harness-Setup.exe" -Force
-
 $sub2apiDownloads = "D:\GOWorks\fanzhongli\sub2api\frontend\public\downloads"
 if (Test-Path $sub2apiDownloads) {
     Copy-Item $harnessSetupExe "$sub2apiDownloads\Mowan-Harness-Setup.exe" -Force
@@ -89,6 +85,16 @@ if (Test-Path $sub2apiDownloads) {
 }
 
 $setupSizeMB = [math]::Round((Get-Item $setupExe).Length / 1MB, 2)
+
+# 安全体积门禁：正常安装包体积在 250MB~350MB 之间。若超过 600MB，必定存在严重文件泄露或递归嵌套打包！
+if ($setupSizeMB -gt 600) {
+    Write-Host "`n❌ [FATAL] 安装包体积异常膨胀 ($setupSizeMB MB > 600 MB 阈值)！" -ForegroundColor Red
+    Write-Host "已触发体积熔断门禁，阻止异常包流向生产与用户更新！" -ForegroundColor Red
+    Write-Host "请参考文档 docs/release-packaging-guide.md 排查 apps/web/dist 或 node_modules 中的残留大文件。" -ForegroundColor Yellow
+    Pop-Location
+    exit 1
+}
+
 Write-Host "`n======================================================" -ForegroundColor Green
 Write-Host "🎉 Standalone Setup Installer Created Successfully!" -ForegroundColor Green
 Write-Host "Output:  $harnessSetupExe" -ForegroundColor Green

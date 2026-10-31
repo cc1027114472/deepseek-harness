@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+﻿import { createHash } from 'node:crypto'
 import { createWriteStream, existsSync, mkdirSync, unlinkSync } from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 
-export const CURRENT_VERSION = '2.2.2'
+export const CURRENT_VERSION = '2.2.3'
 
 export interface UpdateManifest {
   version: string
