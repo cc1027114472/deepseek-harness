@@ -1,10 +1,10 @@
-﻿import { createHash } from 'node:crypto'
-import { createWriteStream, existsSync, mkdirSync, unlinkSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { createWriteStream, existsSync, mkdirSync, statSync, unlinkSync } from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
 import os from 'node:os'
 import path from 'node:path'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 
 export const CURRENT_VERSION = '2.2.3'
 
@@ -81,6 +81,25 @@ export function getCachedUpdate(): CheckUpdateResult {
 }
 
 export function getDownloadStatus(): DownloadProgress {
+  if (currentProgress.status === 'idle') {
+    const fallbackPath = path.join(os.tmpdir(), 'mowan-update', 'Mowan-Agent-Setup.exe')
+    if (existsSync(fallbackPath)) {
+      try {
+        const stat = statSync(fallbackPath)
+        if (stat.size > 10 * 1024 * 1024) {
+          return {
+            status: 'downloaded',
+            pct: 100,
+            downloadedBytes: stat.size,
+            totalBytes: stat.size,
+            filePath: fallbackPath,
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }
   return currentProgress
 }
 
@@ -314,18 +333,50 @@ export function startDownload(downloadUrl: string, expectedSha256?: string): voi
 }
 
 export function applyAndRestart(): { success: boolean; error?: string } {
-  const filePath = currentProgress.filePath
+  let filePath = currentProgress.filePath
   if (!filePath || !existsSync(filePath)) {
-    return { success: false, error: '安装程序文件不存在或未完成下载' }
+    const fallbackPath = path.join(os.tmpdir(), 'mowan-update', 'Mowan-Agent-Setup.exe')
+    if (existsSync(fallbackPath)) {
+      filePath = fallbackPath
+    } else {
+      return { success: false, error: '安装程序文件不存在或未完成下载' }
+    }
   }
 
   try {
-    // Launch installer in silent upgrade mode
-    const child = spawn(filePath, ['--upgrade', '--silent'], {
-      detached: true,
-      stdio: 'ignore',
-    })
-    child.unref()
+    if (process.platform === 'win32') {
+      // Use WMI Win32_Process.Create via PowerShell to decouple the installer from our process tree.
+      // Otherwise, the installer's internal `taskkill /F /IM Mowan-Agent.exe /T` would kill the installer itself as a child process!
+      const cmdLine = `\"${filePath}\" --upgrade --silent`
+      const psScript = `(Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine = '${cmdLine.replace(/'/g, "''")}'}).ReturnValue`
+      let launchedViaWmi = false
+      try {
+        const res = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], {
+          windowsHide: true,
+          timeout: 5000,
+        })
+        const returnCode = res.stdout ? res.stdout.toString().trim() : ''
+        if (returnCode === '0') {
+          launchedViaWmi = true
+        }
+      } catch {
+        // ignore and fallback
+      }
+
+      if (!launchedViaWmi) {
+        const child = spawn(filePath, ['--upgrade', '--silent'], {
+          detached: true,
+          stdio: 'ignore',
+        })
+        child.unref()
+      }
+    } else {
+      const child = spawn(filePath, ['--upgrade', '--silent'], {
+        detached: true,
+        stdio: 'ignore',
+      })
+      child.unref()
+    }
 
     // Gracefully exit host process after 1 second so installer can overwrite files
     setTimeout(() => {

@@ -149,7 +149,7 @@ func getInstalledDirFromRegistry() string {
 
 func killOldInstances(installDir string) {
 	killCmd := func(name string) {
-		cmd := exec.Command("taskkill", "/F", "/IM", name, "/T")
+		cmd := exec.Command("taskkill", "/F", "/IM", name)
 		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
 		_ = cmd.Run()
 	}
@@ -158,7 +158,8 @@ func killOldInstances(installDir string) {
 
 	if installDir != "" {
 		normDir := filepath.Clean(installDir)
-		psCmd := fmt.Sprintf(`Get-Process | Where-Object { $_.Path -and ($_.Path -like '%s*') } | Stop-Process -Force`, strings.ReplaceAll(normDir, `'`, `''`))
+		myPid := os.Getpid()
+		psCmd := fmt.Sprintf(`Get-Process | Where-Object { $_.Id -ne %d -and $_.Path -and ($_.Path -like '%s*') } | Stop-Process -Force`, myPid, strings.ReplaceAll(normDir, `'`, `''`))
 		cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psCmd)
 		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: 0x08000000}
 		_ = cmd.Run()

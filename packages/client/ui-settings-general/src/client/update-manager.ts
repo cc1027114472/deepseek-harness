@@ -124,10 +124,11 @@ export async function triggerDownload(downloadUrl?: string, sha256?: string): Pr
 export async function triggerApply(): Promise<{ success: boolean; error?: string }> {
   try {
     const res = await fetch('/api/system/update/apply', { method: 'POST' })
-    if (res.ok) {
-      return (await res.json()) as { success: boolean; error?: string }
+    const data = await res.json().catch(() => null)
+    if (res.ok && data?.success) {
+      return data as { success: boolean; error?: string }
     }
-    return { success: false, error: '请求升级失败' }
+    return { success: false, error: data?.error || `请求升级失败 (HTTP ${res.status})` }
   } catch (err) {
     return { success: false, error: String(err) }
   }
@@ -159,7 +160,7 @@ export function useUpdateManager() {
     if (globalProgress.status === 'downloading') {
       ensurePolling()
     }
-  }, [])
+  }, [globalProgress.status])
 
   const check = useCallback((force = true) => {
     return fetchUpdateCheck(force)
