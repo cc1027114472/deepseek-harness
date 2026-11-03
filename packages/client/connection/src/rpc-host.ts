@@ -10,7 +10,7 @@ import {
 } from './rpc.ts'
 import { clientRequestSchema } from './rpc-schema.ts'
 import { bridge } from './http-bridge.ts'
-import { isTrustedApiRequest, assertTrustedAuthority } from './api-request-trust.ts'
+import { isTrustedApiRequest, assertTrustedAuthority, isLanHostname } from './api-request-trust.ts'
 import { isLoopbackHostname } from './loopback-hostname.ts'
 import { API_PATH } from './api-path.ts'
 import type { BrowserAuth } from './browser-auth.ts'
@@ -131,7 +131,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
     if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
     const hostname = requestHostname(request.headers)
-    if (hostname !== undefined && isLoopbackHostname(hostname)) return undefined
+    if (hostname !== undefined && (isLoopbackHostname(hostname) || isLanHostname(hostname))) return undefined
     return this.browserAuth.isAuthenticated(request) ? undefined : 401
   }
 
@@ -144,7 +144,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
   /** Authenticate an index request through the process-token exchange or cookie. */
   authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean {
     const hostname = requestHostname(request.headers)
-    if (hostname !== undefined && isLoopbackHostname(hostname)) {
+    if (hostname !== undefined && (isLoopbackHostname(hostname) || isLanHostname(hostname))) {
       const url = new URL(request.url ?? '/', 'http://placeholder')
       if (!url.searchParams.has('token')) return true
     }

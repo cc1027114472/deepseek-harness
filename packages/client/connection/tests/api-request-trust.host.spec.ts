@@ -13,8 +13,11 @@ describe('isTrustedApiRequest', () => {
     // reads (EventSource, images, navigations), so a rebound-origin GET is
     // markerless and its response readable: no marker shortcut may exist.
     expect(isTrustedApiRequest(request({ host: '127.0.0.1:3090' }), [])).toBe(true)
-    expect(isTrustedApiRequest(request({ host: '192.168.1.5:3090' }), ['192.168.1.5'])).toBe(true)
-    expect(isTrustedApiRequest(request({ host: '192.168.1.5:3090' }), [])).toBe(false)
+    expect(isTrustedApiRequest(request({ host: '192.168.1.5:3090' }), [])).toBe(true)
+    expect(isTrustedApiRequest(request({ host: '10.0.0.8:3090' }), [])).toBe(true)
+    expect(isTrustedApiRequest(request({ host: '172.20.1.2:3090' }), [])).toBe(true)
+    expect(isTrustedApiRequest(request({ host: '203.0.113.5:3090' }), ['203.0.113.5'])).toBe(true)
+    expect(isTrustedApiRequest(request({ host: '203.0.113.5:3090' }), [])).toBe(false)
     expect(isTrustedApiRequest(request({ host: 'harness.example' }), [])).toBe(false)
     expect(isTrustedApiRequest(request({}), [])).toBe(false)
   })

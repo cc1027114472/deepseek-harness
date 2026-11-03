@@ -83,6 +83,23 @@ function isTrustedAuthority(hostUrl: URL, trustedHosts: readonly string[]): bool
 }
 
 /**
+ * Determine whether an IPv4 literal represents a private local-area network (LAN) host.
+ * @param hostname - WHATWG URL hostname.
+ * @returns true for 10.0.0.0/8, 172.16.0.0/12, or 192.168.0.0/16 IPv4 literals.
+ */
+export function isLanHostname(hostname: string): boolean {
+  const parts = hostname.split('.')
+  if (parts.length === 4 && parts.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255)) {
+    const p0 = Number(parts[0])
+    const p1 = Number(parts[1])
+    if (p0 === 10) return true
+    if (p0 === 172 && p1 >= 16 && p1 <= 31) return true
+    if (p0 === 192 && p1 === 168) return true
+  }
+  return false
+}
+
+/**
  * Decide whether one /api request may reach the RPC bridge.
  * @param request - Node HTTP or Fetch request facts (headers).
  * @param trustedHosts - non-loopback authorities this deployment serves: exact `host:port`, or port-less `host` matching any port.
@@ -100,7 +117,7 @@ export function isTrustedApiRequest(request: ConnectionTrustRequest, trustedHost
   if (host === undefined) return false
   const hostUrl = parseAuthority(host)
   if (hostUrl === undefined) return false
-  if (!isLoopbackHostname(hostUrl.hostname) && !isTrustedAuthority(hostUrl, trustedHosts)) return false
+  if (!isLoopbackHostname(hostUrl.hostname) && !isLanHostname(hostUrl.hostname) && !isTrustedAuthority(hostUrl, trustedHosts)) return false
   // Cross-site fence: modern browsers label the initiator relationship on
   // every fetch; an explicit cross-site marker is refused regardless of Origin.
   if (header(request.headers, 'sec-fetch-site') === 'cross-site') return false
