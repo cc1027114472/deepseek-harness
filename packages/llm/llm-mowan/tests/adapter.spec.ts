@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { createServer } from 'node:http'
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
@@ -190,6 +187,56 @@ describe('llm-mowan', () => {
           name: 'Mowan Test Model',
           contextWindow: 128000,
           maxTokens: 8192,
+        },
+      ])
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()))
+    }
+  })
+
+  it('discovers models via ctx.llm.discoverModels with Google format by default', async () => {
+    let requestedUrl = ''
+    let requestedApiKeyHeader = ''
+    const server = createServer((req, res) => {
+      requestedUrl = req.url ?? ''
+      requestedApiKeyHeader = (req.headers['x-goog-api-key'] as string) ?? ''
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          models: [
+            {
+              name: 'models/gemini-2.5-pro',
+              displayName: 'Gemini 2.5 Pro',
+              inputTokenLimit: 1048576,
+              outputTokenLimit: 65536,
+            },
+          ],
+        }),
+      )
+    })
+    await new Promise<void>(resolve => server.listen(0, resolve))
+    const address = server.address()
+    const port = typeof address === 'object' && address !== null ? address.port : 0
+    const baseURL = `http://127.0.0.1:${port}`
+
+    try {
+      const ctx = new Context()
+      await ctx.plugin(LlmRuntime)
+      await ctx.plugin(LlmMowan, {})
+
+      const models = await ctx.llm.discoverModels('llm-mowan', {
+        baseURL,
+        apiKey: 'test-google-key',
+      })
+
+      expect(requestedUrl).toBe('/v1beta/models')
+      expect(requestedApiKeyHeader).toBe('test-google-key')
+      expect(models).toEqual([
+        {
+          id: 'gemini-2.5-pro',
+          name: 'Gemini 2.5 Pro',
+          contextWindow: 1048576,
+          maxTokens: 65536,
         },
       ])
     } finally {

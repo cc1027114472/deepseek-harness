@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 
-export const CURRENT_VERSION = '2.2.5'
+export const CURRENT_VERSION = '2.2.6'
 
 export interface UpdateManifest {
   version: string
@@ -332,17 +332,7 @@ export function startDownload(downloadUrl: string, expectedSha256?: string): voi
   executeDownload(downloadUrl)
 }
 
-export function applyAndRestart(): { success: boolean; error?: string } {
-  let filePath = currentProgress.filePath
-  if (!filePath || !existsSync(filePath)) {
-    const fallbackPath = path.join(os.tmpdir(), 'mowan-update', 'Mowan-Agent-Setup.exe')
-    if (existsSync(fallbackPath)) {
-      filePath = fallbackPath
-    } else {
-      return { success: false, error: '安装程序文件不存在或未完成下载' }
-    }
-  }
-
+function launchInstallerAndExit(filePath: string): void {
   try {
     if (process.platform === 'win32') {
       // Use WMI Win32_Process.Create via PowerShell to decouple the installer from our process tree.
@@ -378,10 +368,32 @@ export function applyAndRestart(): { success: boolean; error?: string } {
       child.unref()
     }
 
-    // Gracefully exit host process after 1 second so installer can overwrite files
+    // Gracefully exit host process after 1.5 seconds so installer can overwrite files
     setTimeout(() => {
       process.exit(0)
-    }, 1000)
+    }, 1500)
+  } catch (err) {
+    console.error('Failed to launch installer:', err)
+  }
+}
+
+export function applyAndRestart(): { success: boolean; error?: string } {
+  let filePath = currentProgress.filePath
+  if (!filePath || !existsSync(filePath)) {
+    const fallbackPath = path.join(os.tmpdir(), 'mowan-update', 'Mowan-Agent-Setup.exe')
+    if (existsSync(fallbackPath)) {
+      filePath = fallbackPath
+    } else {
+      return { success: false, error: '安装程序文件不存在或未完成下载' }
+    }
+  }
+
+  try {
+    // Defer installer launch slightly to allow the HTTP response to be flushed cleanly across the socket
+    const targetPath = filePath
+    setTimeout(() => {
+      launchInstallerAndExit(targetPath)
+    }, 800)
 
     return { success: true }
   } catch (err) {

@@ -278,7 +278,9 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   const shownKeyFailure = credentialRequiredFailure ?? keyFailure
   // What the form currently shows, which is what an interrogation must ask:
   // an edited-but-unsaved endpoint, and a key typed but not yet stored.
-  const probeApi = stringAt(draft, 'api') ?? stringAt(fallback, 'api')
+  const probeApi = stringAt(draft, 'api')
+    ?? stringAt(fallback, 'api')
+    ?? (layout === 'mowan' ? 'google-generative-ai' : undefined)
   const probeBaseURL = stringAt(draft, 'baseURL')
     ?? stringAt(fallback, 'baseURL')
     ?? (layout === 'mowan' ? MOWAN_PUBLIC_BASE_URL : undefined)

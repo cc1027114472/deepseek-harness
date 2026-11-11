@@ -24,7 +24,36 @@ export function AboutUpdateRow(_props: AboutUpdateRowProps) {
     if (!res.success) {
       setApplying(false)
       setApplyMsg(res.error || '执行更新升级失败')
+      return
     }
+
+    setApplyMsg('升级程序已启动，系统重启中，正在等待新版本服务就绪...')
+
+    // Wait a brief moment before starting poll to let the server shut down
+    setTimeout(() => {
+      let attempts = 0
+      const pollTimer = setInterval(async () => {
+        attempts++
+        try {
+          const checkRes = await fetch('/api/system/update/status', { method: 'GET', cache: 'no-store' })
+          if (checkRes.ok) {
+            clearInterval(pollTimer)
+            setApplyMsg('新版本服务已就绪，正在刷新界面...')
+            setTimeout(() => {
+              window.location.reload()
+            }, 1000)
+          }
+        } catch {
+          // Still waiting for server to come back up
+        }
+
+        // After 60s, stop polling and allow manual reload
+        if (attempts > 30) {
+          clearInterval(pollTimer)
+          setApplyMsg('系统正在后台完成安装，请稍候手动刷新页面。')
+        }
+      }, 2000)
+    }, 3000)
   }
 
   const renderChangelog = () => {

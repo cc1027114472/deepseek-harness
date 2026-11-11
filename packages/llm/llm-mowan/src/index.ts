@@ -73,14 +73,14 @@ export const Config = z.object({
   retryPolicy: RetryPolicySchema.volatile(),
 })
 
-function plainOptions(raw: any): MowanConfig {
+function plainOptions(raw: unknown): MowanConfig {
   if (!raw || typeof raw !== 'object') return {}
   return Object.fromEntries(
-    Object.entries(raw).map(([key, value]) => [key, isVolatile(value) ? value.get() : value]),
+    Object.entries(raw as Record<string, unknown>).map(([key, value]) => [key, isVolatile(value) ? value.get() : value]),
   )
 }
 
-export function apply(ctx: Context, config: any): void {
+export function apply(ctx: Context, config: unknown): void {
   ctx.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ctx.fiber)) })
   const settingsNs = ctx.fiber.entry?.options.id ?? NS
 
@@ -167,7 +167,9 @@ export function apply(ctx: Context, config: any): void {
     headers: undefined,
     resolveApiKey: async () => {
       try {
-        return await resolveApiKey(PROVIDER, profiles().get(PROVIDER)!)
+        const profile = profiles().get(PROVIDER)
+        if (!profile) return undefined
+        return await resolveApiKey(PROVIDER, profile)
       } catch {
         return undefined
       }
@@ -177,8 +179,9 @@ export function apply(ctx: Context, config: any): void {
   ctx.llm.registerModelDiscovery(settingsNs, (request, signal) => {
     const conf = options()
     const baseURL = request.baseURL ?? conf.baseURL ?? PUBLIC_BASE_URL
+    const api = request.api ?? 'google-generative-ai'
     return discoverModels(
-      { ...request, baseURL, ...signal === undefined ? {} : { signal } },
+      { ...request, baseURL, api, ...signal === undefined ? {} : { signal } },
       storedDiscoveryProfile,
     )
   })

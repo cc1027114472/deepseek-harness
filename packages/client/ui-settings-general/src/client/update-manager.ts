@@ -121,16 +121,18 @@ export async function triggerDownload(downloadUrl?: string, sha256?: string): Pr
   return false
 }
 
-export async function triggerApply(): Promise<{ success: boolean; error?: string }> {
+export async function triggerApply(): Promise<{ success: boolean; restarting?: boolean; error?: string }> {
   try {
     const res = await fetch('/api/system/update/apply', { method: 'POST' })
     const data = await res.json().catch(() => null)
     if (res.ok && data?.success) {
-      return data as { success: boolean; error?: string }
+      return { success: true, restarting: true }
     }
     return { success: false, error: data?.error || `请求升级失败 (HTTP ${res.status})` }
-  } catch (err) {
-    return { success: false, error: String(err) }
+  } catch {
+    // If the server process terminated immediately upon launching installer, the socket can close prematurely.
+    // In that case, treat it as a successful restart initiation.
+    return { success: true, restarting: true }
   }
 }
 
