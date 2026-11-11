@@ -220,6 +220,58 @@ describe('draft-provider model discovery', () => {
     expect(server.headers.map(headers => headers['user-agent'])).toEqual([userAgent(), userAgent(), userAgent()])
   })
 
+  it('uses Google Generative AI model-listing paths, headers, and capacity fields', async () => {
+    const server = await listingServer({
+      body: JSON.stringify({
+        models: [
+          {
+            name: 'models/gemini-1.5-pro',
+            displayName: 'Gemini 1.5 Pro',
+            inputTokenLimit: 2_097_152,
+            outputTokenLimit: 8192,
+          },
+          {
+            name: 'models/gemini-1.5-flash',
+            inputTokenLimit: 1_048_576,
+            outputTokenLimit: 8192,
+          },
+        ],
+      }),
+    })
+    const ctx = await harness()
+
+    const rootModels = await ctx.llm.discoverModels('llm-pi-ai', {
+      baseURL: server.url,
+      api: 'google-generative-ai',
+      apiKey: 'gemini-key',
+    })
+    const versionedModels = await ctx.llm.discoverModels('llm-pi-ai', {
+      baseURL: `${server.url}/v1beta`,
+      api: 'google-generative-ai',
+      apiKey: 'gemini-key',
+    })
+    await ctx.llm.discoverModels('llm-pi-ai', {
+      baseURL: server.url,
+      api: 'google-generative-ai',
+    })
+
+    expect(rootModels).toEqual([
+      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', contextWindow: 2_097_152, maxTokens: 8192 },
+      { id: 'gemini-1.5-flash', name: 'gemini-1.5-flash', contextWindow: 1_048_576, maxTokens: 8192 },
+    ])
+    expect(versionedModels).toEqual(rootModels)
+    expect(server.paths).toEqual([
+      '/v1beta/models',
+      '/v1beta/models',
+      '/v1beta/models',
+    ])
+    expect(server.headers.map(headers => headers['x-goog-api-key']))
+      .toEqual(['gemini-key', 'gemini-key', undefined])
+    expect(server.headers.map(headers => headers.authorization))
+      .toEqual(['Bearer gemini-key', 'Bearer gemini-key', undefined])
+    expect(server.headers.map(headers => headers['user-agent'])).toEqual([userAgent(), userAgent(), userAgent()])
+  })
+
   it('prefers the standard data array when both supported formats are present', async () => {
     const server = await listingServer({
       body: JSON.stringify({
@@ -351,6 +403,9 @@ describe('draft-provider model discovery', () => {
     await expect(ctx.llm.discoverModels('llm-pi-ai', { baseURL: server.url }))
       .rejects.toThrow(/neither a "data" array nor a "models" object/)
 
+    await expect(ctx.llm.discoverModels('llm-pi-ai', { baseURL: server.url, api: 'google-generative-ai' }))
+      .resolves.toEqual([])
+
     const broken = await listingServer({ body: 'not json at all' })
     await expect(ctx.llm.discoverModels('llm-pi-ai', { baseURL: broken.url }))
       .rejects.toThrow(/did not answer with JSON/)
@@ -379,7 +434,7 @@ describe('draft-provider model discovery', () => {
       .rejects.toMatchObject({ code: 'DISCOVERY_FAILED' })
   })
 
-  it.each(['azure-openai-responses', 'openai-codex-responses', 'google-generative-ai'])(
+  it.each(['azure-openai-responses', 'openai-codex-responses'])(
     'says it cannot interrogate %s rather than guessing a shape',
     async (api) => {
       // Azure authenticates with an `api-key` header and an `api-version`

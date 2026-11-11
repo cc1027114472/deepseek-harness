@@ -13,11 +13,12 @@
  * metadata the surface offers for adoption. `cordis.patch.yml` remains the only
  * thing that decides what a route serves.
  *
- * OpenAI-compatible and Anthropic Messages protocols are interrogated through
- * their native model-listing endpoints. The parser accepts the standard
- * `data` array and the enriched `models` map some compatible gateways expose.
- * Every other protocol reports that it cannot be interrogated so the surface
- * falls back to hand-entry rather than guessing its response fields.
+ * OpenAI-compatible, Anthropic Messages, and Google Generative AI protocols
+ * are interrogated through their native model-listing endpoints. The parser
+ * accepts the standard `data` array, Google's `models` array, and the
+ * enriched `models` map some compatible gateways expose. Every other protocol
+ * reports that it cannot be interrogated so the surface falls back to
+ * hand-entry rather than guessing its response fields.
  *
  * @module dsh-llm-pi-ai/discovery
  */
@@ -38,6 +39,7 @@ import { catalogModels } from './catalog.ts'
  */
 const LISTABLE_PROTOCOLS: ReadonlySet<string> = new Set([
   'anthropic-messages',
+  'google-generative-ai',
   'openai-completions',
   'openai-responses',
 ])
@@ -79,10 +81,12 @@ interface ListingEntry {
   context_window?: unknown
   context_length?: unknown
   max_input_tokens?: unknown
+  inputTokenLimit?: unknown
   maxOutputTokens?: unknown
   max_tokens?: unknown
   max_output_tokens?: unknown
   maxTokens?: unknown
+  outputTokenLimit?: unknown
   limit?: ListingLimit | null
   top_provider?: ListingTopProvider | null
 }
@@ -110,15 +114,23 @@ function label(...candidates: readonly unknown[]): string | undefined {
  * of losing them to `URL` resolution. OpenAI protocols list at
  * `{baseURL}/models`. Anthropic lists at `{root}/v1/models`, where the root is
  * the base without trailing slashes and without one trailing `/v1` segment:
- * gateway documentation publishes both spellings of the same root. Only this
- * listing URL normalizes that segment; model requests receive the configured
- * `baseURL` unchanged.
+ * gateway documentation publishes both spellings of the same root. Google
+ * Generative AI lists at `{base}/models` when the base already carries `/v1beta`
+ * or `/v1`, and `{base}/v1beta/models` otherwise. Only this listing URL
+ * normalizes that segment; model requests receive the configured `baseURL`
+ * unchanged.
  */
 function listingUrl(baseURL: string, api: string): string {
   const base = baseURL.replace(/\/+$/, '')
-  if (api !== 'anthropic-messages') return `${base}/models`
-  const root = base.endsWith('/v1') ? base.slice(0, -3) : base
-  return `${root}/v1/models?limit=${String(ANTHROPIC_MODEL_LIMIT)}`
+  if (api === 'anthropic-messages') {
+    const root = base.endsWith('/v1') ? base.slice(0, -3) : base
+    return `${root}/v1/models?limit=${String(ANTHROPIC_MODEL_LIMIT)}`
+  }
+  if (api === 'google-generative-ai') {
+    const root = base.endsWith('/v1beta') || base.endsWith('/v1') ? base : `${base}/v1beta`
+    return `${root}/models`
+  }
+  return `${base}/models`
 }
 
 /**
@@ -178,12 +190,15 @@ async function readBounded(response: Response, url: string): Promise<string> {
  * a working endpoint's catalog. Missing names fall back to the adopted id so
  * the Web form receives a complete human-readable row.
  */
-function readListing(body: unknown): LlmDiscoveredModel[] {
+function readListing(body: unknown, api: string): LlmDiscoveredModel[] {
   const listing = body as { data?: unknown; models?: unknown } | null
   const data = listing?.data
   let listed: { readonly key?: string; readonly raw: unknown }[]
   if (Array.isArray(data)) {
     const rows = data as readonly unknown[]
+    listed = rows.map(raw => ({ raw }))
+  } else if (api === 'google-generative-ai' && Array.isArray(listing?.models)) {
+    const rows = listing.models as readonly unknown[]
     listed = rows.map(raw => ({ raw }))
   } else {
     const models = listing?.models
@@ -198,17 +213,20 @@ function readListing(body: unknown): LlmDiscoveredModel[] {
       .filter(([, raw]) => raw !== null && typeof raw === 'object' && !Array.isArray(raw))
       .map(([key, raw]) => ({ key, raw }))
   }
+  const isGoogle = api === 'google-generative-ai'
   const models: LlmDiscoveredModel[] = []
   for (const { key, raw } of listed) {
     const entry = raw as ListingEntry | null
-    const id = label(key, entry?.id)
+    const strippedName = typeof entry?.name === 'string' ? entry.name.replace(/^models\//, '') : undefined
+    const id = isGoogle ? label(key, entry?.id, strippedName) : label(key, entry?.id)
     if (id === undefined) continue
-    const name = label(entry?.name, entry?.display_name, entry?.displayName) ?? id
+    const name = label(entry?.displayName, entry?.display_name, strippedName, entry?.name) ?? id
     const contextWindow = capacity(
       entry?.contextWindow,
       entry?.context_window,
       entry?.context_length,
       entry?.max_input_tokens,
+      entry?.inputTokenLimit,
       entry?.limit?.context,
     )
     const maxTokens = capacity(
@@ -216,6 +234,7 @@ function readListing(body: unknown): LlmDiscoveredModel[] {
       entry?.max_output_tokens,
       entry?.maxTokens,
       entry?.max_tokens,
+      entry?.outputTokenLimit,
       entry?.limit?.output,
       entry?.top_provider?.max_completion_tokens,
     )
@@ -320,6 +339,11 @@ export async function discoverModels(
     if (api === 'anthropic-messages') {
       headers.set('anthropic-version', ANTHROPIC_VERSION)
       if (apiKey !== undefined) headers.set('x-api-key', apiKey)
+    } else if (api === 'google-generative-ai') {
+      if (apiKey !== undefined) {
+        headers.set('x-goog-api-key', apiKey)
+        headers.set('authorization', `Bearer ${apiKey}`)
+      }
     } else if (apiKey !== undefined) {
       headers.set('authorization', `Bearer ${apiKey}`)
     }
@@ -359,5 +383,5 @@ export async function discoverModels(
   } catch (error: unknown) {
     throw new LlmError(`${url} did not answer with JSON`, 'DISCOVERY_FAILED', { cause: error })
   }
-  return readListing(body)
+  return readListing(body, api)
 }

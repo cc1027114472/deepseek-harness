@@ -49,7 +49,7 @@ Write-Host "  魔丸 (Mowan Agent) 正在启动 $Tag 自动化发布流程..." -
 Write-Host "  发布仓库: $Repo" -ForegroundColor Gray
 Write-Host "=====================================================" -ForegroundColor Cyan
 
-# Step 1: 同步版本号到 updater.ts
+# Step 1: 同步版本号到 updater.ts 及 package.json 并重新编译 connection 库
 Write-Host "`n[1/7] 正在同步源码版本号为 $CleanVersion..." -ForegroundColor Yellow
 $UpdaterFile = Join-Path $RootDir "packages\client\connection\src\updater.ts"
 if (Test-Path $UpdaterFile) {
@@ -58,6 +58,21 @@ if (Test-Path $UpdaterFile) {
     Set-Content -Path $UpdaterFile -Value $content -Encoding UTF8
     Write-Host "  -> 已更新 packages\client\connection\src\updater.ts 中的 CURRENT_VERSION" -ForegroundColor Green
 }
+
+$RootPkgFile = Join-Path $RootDir "package.json"
+if (Test-Path $RootPkgFile) {
+    $pkgContent = Get-Content $RootPkgFile -Raw -Encoding UTF8
+    $pkgContent = $pkgContent -replace '("version":\s*")[^"]+(")', "`${1}$CleanVersion`${2}"
+    Set-Content -Path $RootPkgFile -Value $pkgContent -Encoding UTF8
+    Write-Host "  -> 已更新 package.json 中的 version 为 $CleanVersion" -ForegroundColor Green
+}
+
+Push-Location $RootDir
+Write-Host "  -> 正在编译 @deepseek-ai/dsh-client-connection..." -ForegroundColor Gray
+npx tsc -b packages/client/connection/tsconfig.json
+npx tsdown --config packages/client/connection/tsdown.config.ts
+Pop-Location
+Write-Host "  -> @deepseek-ai/dsh-client-connection 编译完成" -ForegroundColor Green
 
 # Step 2: 执行构建打包
 if (-not $SkipBuild) {
