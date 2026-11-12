@@ -9,7 +9,7 @@ import z from '@deepseek-ai/schemastery'
 import { AnonymousEntries, NamedEntries, ScopedLayers, scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey, ScopeLayer, Scoped } from '@deepseek-ai/dsh-scope'
 import type { ToolCallId, ContentBlock, ToolSchema } from '@deepseek-ai/dsh-llm'
-import { HarnessError } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, HarnessError } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 import { assertNever, deepFreeze, snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -32,6 +32,8 @@ declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
     /** Tool availability changes supplied by the tool registry. */
     'tool-registry': { kind: 'tool-registry' }
+    /** Corrective retry context supplied by a tool plugin. */
+    'plugin': { kind: 'plugin'; plugin: string }
   }
 }
 
@@ -66,7 +68,7 @@ const PTC_ONLY_INSTRUCTION = `**CRITICAL: \`${RUN_CODE_NAME}\` requires BOTH \`c
 3. \`description\` is a short UI label (5-10 words) describing the action in the user's language (e.g. in Chinese if the user asked in Chinese) — it is NEVER a substitute for \`code\`.
 4. A call with only \`description\` fails immediately (\`missing required property "code"\`). Do NOT send only \`description\`.
 5. Execution environment: The program body runs inside an async function. NEVER use \`import\` or \`export\` statements (ES module syntax is unsupported inside function bodies and causes fatal syntax errors). All tools are globally available on the \`tools\` object.
-6. Tool invocation & argument structure: Always call tools as \`await tools.name({ key: value })\`. Tool arguments must be a single plain JSON object matching the tool's parameter schema. Never call a tool without arguments (e.g. \`tools.read()\`) or pass non-lossless JSON.
+6. Tool invocation & argument structure: Always call tools as \`await tools.name({ key: value })\`. Tool arguments must be a single plain JSON object matching the tool's parameter schema. Never call a tool without arguments (e.g. \`tools.read()\`) or pass non-lossless JSON. For shell commands or background processes/servers, always use the registered shell tool (\`tools.bash\` or \`tools.pwsh\`, with \`run_in_background: true\` for background processes) — never spawn child processes directly via \`node:child_process\`, because the \`${RUN_CODE_NAME}\` worker process and all its direct child processes are terminated when the call returns.
 7. Bound searches & avoid timeouts: Tool calls time out after 30 seconds. Never run broad recursive scans (e.g. \`**/*\`) over the root directory or huge folders like node_modules or .git. Always provide a narrow, specific path or pattern.
 8. Program return value: Any returned value via \`return <result>\` must be lossless JSON (plain object, array, string, number, boolean, or null). Never return raw Promises, functions, or complex class instances.
 
@@ -1599,6 +1601,12 @@ export class ToolRuntime extends Service {
         ? toolAbortedResult(result)
         : result
     } catch (error: unknown) {
+      if (exec.name === RUN_CODE_NAME && error instanceof Error && error.name === 'ToolArgsError' && error.message.includes('missing required property "code"')) {
+        exec.deferContext(createUserMessage({
+          content: [{ type: 'text', text: 'Retry by calling `run_code` with both non-empty `code` and `description`.' }],
+          source: { kind: 'plugin', plugin: '@deepseek-ai/dsh-tools' },
+        }))
+      }
       return toolErrorResult(error)
     } finally {
       fused.dispose()

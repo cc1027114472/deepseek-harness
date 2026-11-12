@@ -210,10 +210,10 @@ describe('mode-aware wire contribution', () => {
   })
 
   it('run_code missing `code` attaches one corrective retry context', async () => {
-    const { ctx } = await setup({ mode: 'code' })
+    const { ctx } = await setup({ mode: 'ptc' })
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('call-missing-code'),
+      callId: ToolCallId('call-missing-code'),
       name: RUN_CODE_NAME,
       arguments: { description: 'List files in workspace' },
     })
@@ -230,10 +230,10 @@ describe('mode-aware wire contribution', () => {
   })
 
   it('run_code validation errors unrelated to missing `code` do not attach that retry context', async () => {
-    const { ctx } = await setup({ mode: 'code' })
+    const { ctx } = await setup({ mode: 'ptc' })
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('call-missing-description'),
+      callId: ToolCallId('call-missing-description'),
       name: RUN_CODE_NAME,
       arguments: { code: 'return 1' },
     })

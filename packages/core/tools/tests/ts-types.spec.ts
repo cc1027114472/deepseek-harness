@@ -128,31 +128,40 @@ describe('renderToolsSdk', () => {
     output: { type: 'array', items: { type: 'string' } },
   }
 
-  it('renders compact usage instructions and generic tools declaration', () => {
+  it('renders ToolArgsMap, ToolOutputMap, ToolCallError, and tools sorted by name', () => {
     const text = renderToolsSdk([exotic, bash])
-    expect(text).not.toContain('interface ToolArgsMap {')
-    expect(text).not.toContain('interface ToolOutputMap {')
-    expect(text).toContain('declare class ToolCallError extends Error')
-    expect(text).toContain('readonly toolName: string;')
-    expect(text).toContain('declare const tools: Record<string, (args?: any) => Promise<any>>;')
-    expect(text).toContain('type JsonValue = null | boolean | number | string')
+    expect(text).toContain('interface ToolArgsMap {')
+    expect(text).toContain('  /** Run a shell command. */\n  bash: {\n    command: string;\n    description: string;\n  } & Record<string, JsonValue>;')
+    expect(text).toContain('  /** Exotic name. */\n  "my-mcp.tool": Record<string, JsonValue>;')
+    expect(text).toContain('interface ToolOutputMap {\n  bash: {\n    exitCode: number;\n  };\n  "my-mcp.tool": string[];\n}')
+    expect(text).toContain('type ToolName = keyof ToolOutputMap;')
+    expect(text).toContain('declare class ToolCallError extends Error {\n  readonly name: "ToolCallError";\n  readonly toolName: ToolName;\n}')
+    expect(text).toContain('declare const tools: {\n  readonly [K in ToolName]: (args: ToolArgsMap[K]) => Promise<ToolOutputMap[K]>;\n};')
     expect(text).toContain('reject with `ToolCallError`')
     expect(text).toContain('Promise.all')
     expect(text).toContain('await tools.name(args)')
-    // Verify length stays within compact budget (~300-800 characters across LF/CRLF)
-    expect(text.length).toBeLessThan(800)
-    expect(text.length).toBeGreaterThan(300)
+    // Sorted: bash appears before my-mcp.tool.
+    expect(text.indexOf('  bash:')).toBeLessThan(text.indexOf('  "my-mcp.tool":'))
   })
 
-  it('names both required call arguments, not just the program', () => {
+  it('names both required call arguments and shows a complete example when bash or pwsh is registered', () => {
     const text = renderToolsSdk([bash])
     expect(text).toContain('`code`')
     expect(text).toContain('`description`')
     expect(text).toContain('two required arguments')
+    expect(text).toContain('run_code({\n  code: "return await tools.bash({ command: \'pwd\', description: \'Show current directory\' })",\n  description: "Show current directory"\n})')
+    expect(renderToolsSdk([exotic])).not.toContain('tools.bash(')
+    const pwsh = { ...bash, name: 'pwsh' }
+    expect(renderToolsSdk([pwsh])).toContain('tools.pwsh(')
   })
 
-  it('is deterministic and stable regardless of input order or empty input', () => {
+  it('is deterministic regardless of input order', () => {
     expect(renderToolsSdk([bash, exotic])).toBe(renderToolsSdk([exotic, bash]))
-    expect(renderToolsSdk([])).toBe(renderToolsSdk([bash]))
+  })
+
+  it('renders valid empty interfaces when no tools are registered', () => {
+    const text = renderToolsSdk([])
+    expect(text).toContain('interface ToolArgsMap {\n}')
+    expect(text).toContain('interface ToolOutputMap {\n}')
   })
 })

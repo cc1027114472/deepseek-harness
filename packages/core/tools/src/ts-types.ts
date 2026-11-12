@@ -246,7 +246,7 @@ export function jsonSchemaToTs(schema: unknown, indent = 0): string {
   }
 }
 
-/** The fixed compact model-facing usage contract rendered in the tools:sdk section. */
+/** The fixed model-facing usage contract rendered at the top of the tools:sdk section. */
 const SDK_INSTRUCTIONS = `## Writing code for run_code
 
 \`run_code\` takes two required arguments: \`code\` (async TypeScript function body) and \`description\` (short UI label).
@@ -254,26 +254,55 @@ Inside the function:
 - Never use \`import\`/\`export\` (async function body). Reach all tools on \`tools\`.
 - Call tools via \`await tools.name(args)\` (JSON object args). Bound searches (timeout 30s).
 - Concurrent read-only calls may run via \`await Promise.all([...])\`.
-- Return values via \`return <result>\` (lossless JSON). Tool failures reject with \`ToolCallError\`.
+- Return values via \`return <result>\` (lossless JSON). Tool failures reject with \`ToolCallError\`.`
 
-\`\`\`ts
-type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
-
-declare class ToolCallError extends Error {
-  readonly name: "ToolCallError";
-  readonly toolName: string;
+/** Render a concrete one-line shell example when the `bash` or `pwsh` tool is registered. */
+function renderShellExample(schemas: readonly ToolSdkSchema[]): string {
+  const shellTool = schemas.some(s => s.name === 'bash')
+    ? 'bash'
+    : schemas.some(s => s.name === 'pwsh')
+      ? 'pwsh'
+      : undefined
+  if (shellTool === undefined) return ''
+  return `\nFor shell commands or background services, always use \`tools.${shellTool}\` (set \`run_in_background: true\` to keep processes alive across turns) — direct \`child_process\` spawns inside \`run_code\` are terminated when the call returns.\nExample:\n\`\`\`ts\nrun_code({\n  code: "return await tools.${shellTool}({ command: 'pwd', description: 'Show current directory' })",\n  description: "Show current directory"\n})\n\`\`\`\n`
 }
 
-declare const tools: Record<string, (args?: any) => Promise<any>>;
-\`\`\``
-
 /**
- * Render the compact `tools:sdk` prompt section: usage instructions,
- * standard error declaration, and the tools calling interface without
- * expanding full parameter schemas inline.
- * @param _schemas - the tool schemas (kept for interface compatibility).
+ * Render the complete `tools:sdk` prompt section: usage instructions,
+ * `ToolArgsMap`, `ToolOutputMap`, `ToolCallError`, and `declare const tools`.
+ * Tools are sorted by `name` for deterministic output.
+ * @param schemas - the tool schemas to include.
  * @returns the complete section text.
  */
-export function renderToolsSdk(_schemas: ToolSdkSchema[] = []): string {
-  return SDK_INSTRUCTIONS
+export function renderToolsSdk(schemas: ToolSdkSchema[] = []): string {
+  const sorted = [...schemas].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+  const argLines: string[] = ['interface ToolArgsMap {']
+  const outLines: string[] = ['interface ToolOutputMap {']
+  for (const tool of sorted) {
+    const key = renderKey(tool.name)
+    for (const line of docLines(tool.description, 1)) argLines.push(line)
+    argLines.push(`  ${key}: ${jsonSchemaToTs(tool.parameters, 1)};`)
+    outLines.push(`  ${key}: ${jsonSchemaToTs(tool.output, 1)};`)
+  }
+  argLines.push('}')
+  outLines.push('}')
+  const declarations = [
+    'type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };',
+    '',
+    ...argLines,
+    '',
+    ...outLines,
+    '',
+    'type ToolName = keyof ToolOutputMap;',
+    '',
+    'declare class ToolCallError extends Error {',
+    '  readonly name: "ToolCallError";',
+    '  readonly toolName: ToolName;',
+    '}',
+    '',
+    'declare const tools: {',
+    '  readonly [K in ToolName]: (args: ToolArgsMap[K]) => Promise<ToolOutputMap[K]>;',
+    '};',
+  ].join('\n')
+  return `${SDK_INSTRUCTIONS}\n${renderShellExample(sorted)}\n\`\`\`ts\n${declarations}\n\`\`\``
 }
